@@ -23,8 +23,9 @@ class HGNNLayer(nn.Module):
             #     weight[i - 1] = weight[i - 1] * i
             # self.A[shape] = weight
 
-    # h = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
+    # x_i+1 = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
     def forward(self, x, hyperedge_index, hyperedge_type):
+        # Not sure whether these tensors are automatically move to device
         index = torch.tensor([], dtype=torch.int16)
         x_j = torch.tensor([], dtype=torch.float16)
         # Loop through hyperedges with different shapes (num of src nodes)
@@ -60,25 +61,24 @@ class HGNNLayer(nn.Module):
 
 
 class HGNN(nn.Module):
-    def __init__(self, base_dim, num_edge_types_by_shape):
+    def __init__(self, base_dim, num_edge_types_by_shape, num_layers):
         super(HGNN, self).__init__()
         self.num_edge_types_by_shape = num_edge_types_by_shape
-        self.msg_layer_1 = HGNNLayer(base_dim, num_edge_types_by_shape)
-        self.activation1 = torch.relu
-        self.msg_layer_2 = HGNNLayer(base_dim, num_edge_types_by_shape)
-        self.activation2 = torch.relu
+        self.num_layers = num_layers
+        self.msg_layers = nn.ModuleList([])
+        for i in range(self.num_layers):
+            self.msg_layers.append(HGNNLayer(base_dim, num_edge_types_by_shape))
         self.lin_layer_1 = nn.Linear(base_dim, base_dim)
-        self.activation3 = torch.relu
         self.lin_layer_2 = nn.Linear(base_dim, 1)
-        self.activation4 = torch.sigmoid
 
     def forward(self, x, hyperedge_index, hyperedge_type):
-        h = self.msg_layer_1(x, hyperedge_index, hyperedge_type)
-        h = self.activation1(h)
-        h = self.msg_layer_2(h, hyperedge_index, hyperedge_type)
-        h = self.activation2(h)
-        h = self.lin_layer_1(h)
-        h = self.activation3(h)
-        h = self.lin_layer_2(h)
-        h = self.activation4(h)
-        return h
+        # Message passing layers
+        for i in range(self.num_layers):
+            x = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
+            x = torch.relu(x)
+        # Two layer mlp as binary classifier
+        x = self.lin_layer_1(x)
+        x = torch.relu(x)
+        x = self.lin_layer_2(x)
+        x = torch.sigmoid(x)
+        return x
