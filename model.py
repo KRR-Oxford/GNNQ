@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as f
 import torch_scatter as scatter
 
 
@@ -17,34 +16,35 @@ class HGNNLayer(nn.Module):
             self.A[str(shape)] = torch.nn.Parameter(
                 torch.zeros(num_edge_types_by_shape[shape], base_dim * shape, base_dim))
             nn.init.xavier_normal_(self.A[str(shape)])
-            # Dummy weights for debugging
-            # weight = torch.diag(torch.ones(base_dim)).repeat(shape, 1).repeat(num_edge_types_by_shape[shape], 1, 1)
-            # for i in range(1, num_edge_types_by_shape[shape] + 1):
-            #     weight[i - 1] = weight[i - 1] * i
-            # self.A[shape] = weight
 
     # x_i+1 = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
-    def forward(self, x, hyperedge_index, hyperedge_type):
+    def forward(self, x, hyperedge_index_by_shape, hyperedge_type_by_shape):
+        # Some basic checks to verify input
+        for shape in hyperedge_index_by_shape:
+            assert (shape in hyperedge_type_by_shape)
+            assert (hyperedge_index_by_shape[shape].size()[1] == (hyperedge_type_by_shape[shape].size()[0] * shape))
+            assert (torch.max(hyperedge_type_by_shape[shape]) <= self.num_edge_types_by_shape[shape] - 1)
         # Not sure whether these tensors are automatically move to device
         index = torch.tensor([], dtype=torch.int16)
         x_j = torch.tensor([], dtype=torch.float16)
         # Loop through hyperedges with different shapes (num of src nodes)
-        for shape in hyperedge_index:
+        for shape in hyperedge_index_by_shape:
             # Loop through edge_types for every shape
             for edge_type in range(0, self.num_edge_types_by_shape[shape]):
-                mask = (hyperedge_type[shape] == edge_type)
+                mask = (hyperedge_type_by_shape[shape] == edge_type)
                 mask = mask.unsqueeze(1).repeat(1, shape).flatten()
-                i = torch.reshape(hyperedge_index[shape][1][mask], (-1, shape))
+                i = torch.reshape(hyperedge_index_by_shape[shape][1][mask], (-1, shape))
                 if (i.nelement() != 0):
                     # Compute indices for scatter function
                     i = i[:, 0]
                     index = torch.cat((index, i), dim=0)
                     # Compute src for scatter function
-                    tmp = x[hyperedge_index[shape][0][mask]]
+                    tmp = x[hyperedge_index_by_shape[shape][0][mask]]
                     s = tmp.size()[1] * shape
                     # Concat feature vectors of src nodes for hyperedges
                     tmp = torch.reshape(tmp, (-1, s))
                     weights = self.A[str(shape)][edge_type]
+                    # Linear transformation of messages
                     tmp = tmp.mm(weights)
                     # Normalisation
                     _, revers_i, counts = torch.unique(i, return_inverse=True, return_counts=True)
