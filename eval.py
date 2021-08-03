@@ -1,6 +1,6 @@
 import torch
 from model import HGNN
-from data import load_data
+from data import data, create_y_vector, create_index_matrices, load_answers, load_subquery_answers
 import numpy as np
 import argparse
 from torchmetrics import Accuracy, Precision, Recall
@@ -17,9 +17,16 @@ parser.add_argument('--val_epochs', type=int, default=10)
 parser.add_argument('--lr', type=int, default=0.1)
 args = parser.parse_args()
 
-x_val, y_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape , _= load_data(args.val_data + '/graph.ttl', args.val_data + '/answers.npy', args.val_data + '/sub_query_answers_val.npy', args.base_dim)
+triples_val, entity2id_val, relation2id_val, _, _ = data(args.val_data + '/graph.ttl')
+num_nodes_val = len(entity2id_val)
+num_rel_val = len(relation2id_val)
+answers = load_answers(args.val_data + '/answers.npy')
+y_val = create_y_vector(answers, num_nodes_val)
+subquery_answers_val = load_subquery_answers(args.val_data + '/sub_query_answers.npy')
+x_val = torch.cat((torch.ones(num_nodes_val,1), torch.zeros(num_nodes_val, args.base_dim - 1)), dim=1)
+hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val, num_rel_val, subquery_answers_val)
 
-model = HGNN(args.base_dim, num_edge_types_by_shape, args.num_layers)
+model = HGNN(args.base_dim, num_edge_types_by_shape_val, args.num_layers)
 model.to(device)
 help = model.parameters()
 for param in model.parameters():

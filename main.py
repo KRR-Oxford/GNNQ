@@ -1,11 +1,11 @@
 import torch
 from model import HGNN
-from data import load_data
+from data import data, create_y_vector, create_index_matrices, load_answers, load_subquery_answers
 import numpy as np
 import argparse
 from torchmetrics import Accuracy, Precision, Recall
 
-parser = argparse.ArgumentParser(description='Process some integers.')
+parser = argparse.ArgumentParser(description='Bla bla')
 parser.add_argument('--train_data', type=str, default='train')
 parser.add_argument('--val_data', type=str, default='val')
 parser.add_argument('--base_dim', type=int, default=16)
@@ -23,8 +23,23 @@ val_epochs = args.val_epochs
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-x_train, y_train, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train, answer_indices = load_data(args.train_data + '/graph.ttl', args.train_data + '/answers.npy', args.train_data + '/sub_query_answers.npy', base_dim)
-x_val, y_val, hyperedge_index_val, hyperedge_type_val, _ , _= load_data(args.val_data + '/graph.ttl', args.val_data + '/answers.npy', args.val_data + '/sub_query_answers_val.npy', base_dim)
+triples, entity2id, relation2id, _, _ = data(args.train_data + '/graph.ttl')
+num_nodes = len(entity2id)
+num_rel = len(relation2id)
+answers = load_answers(args.train_data + '/answers.npy')
+y_train = create_y_vector(answers, num_nodes)
+subquery_answers = load_subquery_answers(args.train_data + '/sub_query_answers.npy')
+x_train = torch.cat((torch.ones(num_nodes,1), torch.zeros(num_nodes,base_dim - 1)), dim=1)
+hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples, num_rel, subquery_answers)
+
+triples_val, entity2id_val, relation2id_val, _, _ = data(args.val_data + '/graph.ttl')
+num_nodes_val = len(entity2id_val)
+num_rel_val = len(relation2id_val)
+answers = load_answers(args.val_data + '/answers.npy')
+y_val = create_y_vector(answers, num_nodes_val)
+subquery_answers_val = load_subquery_answers(args.val_data + '/sub_query_answers.npy')
+x_val = torch.cat((torch.ones(num_nodes_val,1), torch.zeros(num_nodes_val,base_dim - 1)), dim=1)
+hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val, num_rel_val, subquery_answers_val)
 
 model = HGNN(base_dim, num_edge_types_by_shape_train, num_layers)
 model.to(device)
@@ -43,8 +58,8 @@ def train_loop(model, loss_fn, optimizer, epochs, hyperedge_index_train, hypered
     for i in range(epochs):
         model.train()
         pred = model(x_train, hyperedge_index_train, hyperedge_type_train).flatten()
-        pred = torch.cat((pred[answer_indices], pred[torch.randint(x_train.size()[0], size=(len(answer_indices),))]), dim=0)
-        loss = loss_fn(pred, torch.cat((torch.ones(len(answer_indices)), torch.zeros(len(answer_indices))), dim = 0))
+        pred = torch.cat((pred[answers], pred[torch.randint(x_train.size()[0], size=(len(answers),))]), dim=0)
+        loss = loss_fn(pred, torch.cat((torch.ones(len(answers)), torch.zeros(len(answers))), dim = 0))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
