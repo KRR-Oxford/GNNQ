@@ -1,6 +1,6 @@
 import torch
 from model import HGNN
-from data import data, create_y_vector, create_index_matrices, load_answers, load_subquery_answers
+from utils import create_triples_with_ids, create_y_vector, create_index_matrices, load_answers, load_subquery_answers
 import numpy as np
 import argparse
 from torchmetrics import Accuracy, Precision, Recall
@@ -12,14 +12,12 @@ parser.add_argument('--train_data', type=str, default='train')
 parser.add_argument('--val_data', type=str, default='val')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=3)
-parser.add_argument('--epochs', type=int, default=20)
-parser.add_argument('--val_epochs', type=int, default=10)
-parser.add_argument('--lr', type=int, default=0.1)
 args = parser.parse_args()
 
-triples_val, entity2id_val, relation2id_val, _, _ = data(args.val_data + '/graph.ttl')
+_, _, relation2id, _, _ = create_triples_with_ids(args.train_data + '/graph.ttl')
+triples_val, entity2id_val, _ , _, _ = create_triples_with_ids(args.val_data + '/graph.ttl', relation2id)
 num_nodes_val = len(entity2id_val)
-num_rel_val = len(relation2id_val)
+num_rel_val = len(relation2id)
 answers = load_answers(args.val_data + '/answers.npy')
 y_val = create_y_vector(answers, num_nodes_val)
 subquery_answers_val = load_subquery_answers(args.val_data + '/sub_query_answers.npy')
