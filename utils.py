@@ -45,10 +45,8 @@ def create_triples_with_ids(triples, relation2id=None):
     ent = 0
     rel = 0
 
-    triples_with_ids = []
+    id_triples = []
     for triple in triples:
-        if triples[2] == 'bemused contamination retrenching introduce monolith robe':
-            print('pause')
         if triple[0] not in entity2id:
             entity2id[triple[0]] = ent
             ent += 1
@@ -61,35 +59,40 @@ def create_triples_with_ids(triples, relation2id=None):
 
         # Save the triplets corresponding to only the known relations
         if triple[1] in relation2id:
-            triples_with_ids.append([entity2id[triple[0]], relation2id[triple[1]], entity2id[triple[2]]])
+            id_triples.append([entity2id[triple[0]], relation2id[triple[1]], entity2id[triple[2]]])
 
     id2entity = {v: k for k, v in entity2id.items()}
     id2relation = {v: k for k, v in relation2id.items()}
 
-    return triples_with_ids, entity2id, relation2id, id2entity, id2relation
+    return id_triples, entity2id, relation2id, id2entity, id2relation
 
-def create_index_matrices(triples_with_ids, num_rels, subquery_answers):
+def create_index_matrices(triples_with_ids):
     edges = torch.tensor(triples_with_ids).t()[[0, 2]]
     edges = torch.cat((edges, edges[[1,0]]), dim=1)
     edge_type = torch.tensor(triples_with_ids).t()[1]
     edge_type = torch.cat((edge_type, edge_type + torch.max(edge_type) + 1),dim=0)
-    hyperedge_index = {1: edges}
-    hyperedge_type = {1: edge_type}
-    num_edge_types_by_shape = {1: num_rels * 2}
-    for hyperedge_indices in subquery_answers:
-        hyperedge_indices = torch.tensor(hyperedge_indices)
-        if len(hyperedge_indices) - 1 not in hyperedge_index:
-            hyperedge_index[len(hyperedge_indices) - 1] = torch.stack((hyperedge_indices[1:], hyperedge_indices[0].repeat(len(hyperedge_indices) - 1)), dim=0)
-            hyperedge_type[len(hyperedge_indices) - 1] = torch.tensor([0])
+    index_matrices_by_shape = {1: edges}
+    edge_type_by_shape = {1: edge_type}
+    num_edge_types_by_shape = {1: len(torch.unique(edge_type))}
+    return index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape
+
+def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_shape, num_edge_types_by_shape):
+    # Add logic to handle multiple subqueries
+    for tuple in tuples:
+        tuple = torch.tensor(tuple)
+        if len(tuple) - 1 not in index_matrices_by_shape:
+            index_matrices_by_shape[len(tuple) - 1] = torch.stack((tuple[1:], tuple[0].repeat(len(tuple) - 1)),
+                                                                   dim=0)
+            edge_type_by_shape[len(tuple) - 1] = torch.tensor([0])
         else:
-            hyperedge_index[len(hyperedge_indices) - 1] = torch.cat((hyperedge_index[len(hyperedge_indices) - 1], torch.stack((hyperedge_indices[1:],hyperedge_indices[0].repeat(len(hyperedge_indices)-1)),dim=0)),dim=1)
-            hyperedge_type[len(hyperedge_indices) - 1] = torch.cat((hyperedge_type[len(hyperedge_indices) - 1],torch.tensor([0])),dim=0)
-    for shape in hyperedge_type:
+            index_matrices_by_shape[len(tuple) - 1] = torch.cat((index_matrices_by_shape[len(tuple) - 1], torch.stack(
+                (tuple[1:], tuple[0].repeat(len(tuple) - 1)), dim=0)), dim=1)
+            edge_type_by_shape[len(tuple) - 1] = torch.cat((edge_type_by_shape[len(tuple) - 1], torch.tensor([0])),
+                                                            dim=0)
+    for shape in edge_type_by_shape:
         if shape != 1:
-            num_edge_types_by_shape[shape] = len(torch.unique(hyperedge_type[shape]))
-    return hyperedge_index, hyperedge_type, num_edge_types_by_shape
-
-
+            num_edge_types_by_shape[shape] = len(torch.unique(edge_type_by_shape[shape]))
+    return index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape
 
 def create_y_vector(answers, num_nodes):
     # K - hot vector indicating all answers
@@ -104,16 +107,13 @@ if __name__ == '__main__':
     parser.add_argument('--query',type=str,default='SELECT ?s ?r ?o WHERE { ?s ?r ?o }')
     args = parser.parse_args()
 
-    # query = """SELECT distinct ?v0 WHERE { ?v0 <28> ?v1 . ?v0 <30> ?v2 . ?v0 <32> ?v3 . ?v0 <53> ?v4 . ?v4 <9> ?v5  . ?v4 <84> ?v6 . ?v7 <78> ?v6 . ?v7 <40> ?v8 }"""
-    # sub_query = """SELECT distinct ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE { ?v0 <28> ?v1 . ?v0 <32> ?v3 . ?v0 <53> ?v4 . ?v4 <9> ?v5 . ?v4 <84> ?v6 }"""
 
     query = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     subquery = 'SELECT distinct ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 }'
 
-    save_query_answers(args.train_data + '/graph.ttl' , query, 'answers.pickle')
+    save_query_answers(args.val_data + '/graph.ttl' , subquery, 'val_subquery_answers.pickle')
     # answers = load_answers('subquery_answers.pickle')
     print('Done')
-    #replace_rels_with_ids(args.val_data + '/graph.ttl')
 
 
 

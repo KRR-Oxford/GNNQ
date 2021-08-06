@@ -1,6 +1,6 @@
 import torch
 from model import HGNN
-from utils import load_triples, create_triples_with_ids, create_y_vector, create_index_matrices, load_answers
+from utils import load_triples, load_answers, create_triples_with_ids, create_y_vector, create_index_matrices, add_tuples_to_index_matrices
 import numpy as np
 import argparse
 from torchmetrics import Accuracy, Precision, Recall
@@ -26,25 +26,26 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 triples = load_triples(args.train_data + '/graph.ttl')
 triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
 num_nodes = len(entity2id)
-num_rel = len(relation2id)
-answers = load_answers('answers.pickle')
+answers = load_answers(args.train_data + '/answers.pickle')
 answers = [entity2id[entity[0]] for entity in answers]
 y_train = create_y_vector(answers, num_nodes)
-subquery_answers = load_answers('subquery_answers.pickle')
-subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
 x_train = torch.cat((torch.ones(num_nodes,1), torch.zeros(num_nodes,base_dim - 1)), dim=1)
-hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples, num_rel, subquery_answers)
+hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
+subquery_answers = load_answers(args.train_data + '/subquery_answers.pickle')
+subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
+hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = add_tuples_to_index_matrices(subquery_answers, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train)
 
-# Make sure relations types in all graphs have the same ids -- why did this work up to now when applying model to val data?
 triples_val = load_triples(args.val_data + '/graph.ttl')
-triples_val, entity2id_val, _, _, _ = create_triples_with_ids(args.val_data + '/graph.ttl', relation2id)
+triples_val, entity2id_val, _, _, _ = create_triples_with_ids(triples_val, relation2id)
 num_nodes_val = len(entity2id_val)
-answers = load_answers(args.val_data + '/answers.npy')
-y_val = create_y_vector(answers, num_nodes_val)
-subquery_answers_val = load_answers('val_subquery_answers.npy')
-subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
+val_answers = load_answers(args.val_data + '/val_answers.pickle')
+val_answers = [entity2id_val[entity[0]] for entity in val_answers]
+y_val = create_y_vector(val_answers, num_nodes_val)
 x_val = torch.cat((torch.ones(num_nodes_val,1), torch.zeros(num_nodes_val,base_dim - 1)), dim=1)
-hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val, num_rel, subquery_answers_val)
+hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
+subquery_answers_val = load_answers(args.val_data + '/val_subquery_answers.pickle')
+subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
+hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
 
 model = HGNN(base_dim, num_edge_types_by_shape_train, num_layers)
 model.to(device)
