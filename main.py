@@ -10,7 +10,7 @@ parser.add_argument('--train_data', type=str, default='train')
 parser.add_argument('--val_data', type=str, default='val')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=3)
-parser.add_argument('--epochs', type=int, default=20)
+parser.add_argument('--epochs', type=int, default=500)
 parser.add_argument('--val_epochs', type=int, default=10)
 parser.add_argument('--lr', type=int, default=0.1)
 args = parser.parse_args()
@@ -23,6 +23,9 @@ val_epochs = args.val_epochs
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
+val_subquery_answers_files = ['/val_subquery_answers.pickle','/val_subquery_answers2.pickle']
+
 triples = load_triples(args.train_data + '/graph.ttl')
 triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
 num_nodes = len(entity2id)
@@ -31,9 +34,12 @@ answers = [entity2id[entity[0]] for entity in answers]
 y_train = create_y_vector(answers, num_nodes)
 x_train = torch.cat((torch.ones(num_nodes,1), torch.zeros(num_nodes,base_dim - 1)), dim=1)
 hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
-subquery_answers = load_answers(args.train_data + '/subquery_answers.pickle')
-subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
-hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = add_tuples_to_index_matrices(subquery_answers, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train)
+for file in subquery_answers_files:
+    subquery_answers = load_answers(args.train_data + file)
+    subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
+    hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = add_tuples_to_index_matrices(
+        subquery_answers, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train)
+
 
 triples_val = load_triples(args.val_data + '/graph.ttl')
 triples_val, entity2id_val, _, _, _ = create_triples_with_ids(triples_val, relation2id)
@@ -43,9 +49,10 @@ val_answers = [entity2id_val[entity[0]] for entity in val_answers]
 y_val = create_y_vector(val_answers, num_nodes_val)
 x_val = torch.cat((torch.ones(num_nodes_val,1), torch.zeros(num_nodes_val,base_dim - 1)), dim=1)
 hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
-subquery_answers_val = load_answers(args.val_data + '/val_subquery_answers.pickle')
-subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
-hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
+for file in subquery_answers_files:
+    subquery_answers_val = load_answers(args.val_data + '/val_subquery_answers.pickle')
+    subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
+    hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
 
 model = HGNN(base_dim, num_edge_types_by_shape_train, num_layers)
 model.to(device)

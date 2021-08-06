@@ -26,7 +26,7 @@ subquery_answers_val = load_answers(args.val_data + '/val_subquery_answers.pickl
 subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
 x_val = torch.cat((torch.ones(num_nodes_val,1), torch.zeros(num_nodes_val,args.base_dim - 1)), dim=1)
 hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
-hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
+hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val,0)
 
 model = HGNN(args.base_dim, num_edge_types_by_shape_val, args.num_layers)
 model.to(device)

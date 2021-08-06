@@ -77,7 +77,6 @@ def create_index_matrices(triples_with_ids):
     return index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape
 
 def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_shape, num_edge_types_by_shape):
-    # Add logic to handle multiple subqueries
     for tuple in tuples:
         tuple = torch.tensor(tuple)
         if len(tuple) - 1 not in index_matrices_by_shape:
@@ -87,7 +86,7 @@ def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_
         else:
             index_matrices_by_shape[len(tuple) - 1] = torch.cat((index_matrices_by_shape[len(tuple) - 1], torch.stack(
                 (tuple[1:], tuple[0].repeat(len(tuple) - 1)), dim=0)), dim=1)
-            edge_type_by_shape[len(tuple) - 1] = torch.cat((edge_type_by_shape[len(tuple) - 1], torch.tensor([0])),
+            edge_type_by_shape[len(tuple) - 1] = torch.cat((edge_type_by_shape[len(tuple) - 1], torch.tensor([torch.max(edge_type_by_shape[len(tuple) - 1])])),
                                                             dim=0)
     for shape in edge_type_by_shape:
         if shape != 1:
@@ -110,8 +109,8 @@ if __name__ == '__main__':
 
     query = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     subquery = 'SELECT distinct ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 }'
-
-    save_query_answers(args.val_data + '/graph.ttl' , subquery, 'val_subquery_answers.pickle')
+    subquery2 = 'SELECT distinct ?v4 ?v5 ?v6 ?v7 ?v8  WHERE {  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
+    save_query_answers(args.train_data + '/graph.ttl' , subquery2, 'subquery_answers2.pickle')
     # answers = load_answers('subquery_answers.pickle')
     print('Done')
 
