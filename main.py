@@ -23,8 +23,8 @@ val_epochs = args.val_epochs
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
-val_subquery_answers_files = ['/val_subquery_answers.pickle','/val_subquery_answers2.pickle']
+subquery_answers_files = ['/subquery_answers2.pickle']
+val_subquery_answers_files = ['/val_subquery_answers2.pickle']
 
 triples = load_triples(args.train_data + '/graph.ttl')
 triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
@@ -49,8 +49,8 @@ val_answers = [entity2id_val[entity[0]] for entity in val_answers]
 y_val = create_y_vector(val_answers, num_nodes_val)
 x_val = torch.cat((torch.ones(num_nodes_val,1), torch.zeros(num_nodes_val,base_dim - 1)), dim=1)
 hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
-for file in subquery_answers_files:
-    subquery_answers_val = load_answers(args.val_data + '/val_subquery_answers.pickle')
+for file in val_subquery_answers_files:
+    subquery_answers_val = load_answers(args.val_data + file)
     subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
     hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
 
