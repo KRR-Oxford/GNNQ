@@ -24,7 +24,7 @@ class HGNNLayer(nn.Module):
             assert (hyperedge_index_by_shape[shape].size()[1] == (hyperedge_type_by_shape[shape].size()[0] * shape))
             assert (torch.max(hyperedge_type_by_shape[shape]) <= self.num_edge_types_by_shape[shape] - 1)
         # Not sure whether these tensors are automatically move to device
-        index = torch.tensor([], dtype=torch.int16)
+        dest_indices = torch.tensor([], dtype=torch.int16)
         msgs = torch.tensor([], dtype=torch.float16)
         # Loop through hyperedges with different shapes (num of src nodes)
         for shape in hyperedge_index_by_shape:
@@ -36,7 +36,7 @@ class HGNNLayer(nn.Module):
                 if (i.nelement() != 0):
                     # Compute indices for scatter function
                     i = i[:, 0]
-                    index = torch.cat((index, i), dim=0)
+                    dest_indices = torch.cat((dest_indices, i), dim=0)
                     # Compute src for scatter function
                     tmp = x[hyperedge_index_by_shape[shape][0][mask]]
                     s = tmp.size()[1] * shape
@@ -51,9 +51,9 @@ class HGNNLayer(nn.Module):
                     tmp = norm.unsqueeze(1) * tmp
                     # Tensor with all messages
                     msgs = torch.cat((msgs, tmp))
-        index = index.unsqueeze(1).expand_as(msgs)
+        dest_indices = dest_indices.unsqueeze(1).expand_as(msgs)
         # Aggregate
-        agg = scatter.scatter_add(src=msgs, index=index, out=torch.zeros_like(x), dim=0)
+        agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros_like(x), dim=0)
         # Combine
         h = self.C(x) + agg
         return h
