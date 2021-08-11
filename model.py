@@ -4,20 +4,19 @@ import torch_scatter as scatter
 
 
 class HGNNLayer(nn.Module):
-    def __init__(self, base_dim, num_edge_types_by_shape):
+    def __init__(self, input_dim, output_dim, num_edge_types_by_shape):
         super(HGNNLayer, self).__init__()
-        self.base_dim = base_dim
         self.num_edge_types_by_shape = num_edge_types_by_shape
         # Includes bias
-        self.C = torch.nn.Linear(base_dim, base_dim)
+        self.C = torch.nn.Linear(input_dim, output_dim)
         self.A = torch.nn.ParameterDict({})
         # Shape is the number of src nodes -- we consider edges of the form ((u_0,...,u_{n-1}), R, v)
         for shape in num_edge_types_by_shape:
             self.A[str(shape)] = torch.nn.Parameter(
-                torch.zeros(num_edge_types_by_shape[shape], base_dim * shape, base_dim))
+                torch.zeros(num_edge_types_by_shape[shape], input_dim * shape, output_dim))
             nn.init.xavier_normal_(self.A[str(shape)])
 
-    # x_i+1 = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
+    # h = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
     def forward(self, x, hyperedge_index_by_shape, hyperedge_type_by_shape):
         # Some basic checks to verify input
         for shape in hyperedge_index_by_shape:
@@ -26,7 +25,7 @@ class HGNNLayer(nn.Module):
             assert (torch.max(hyperedge_type_by_shape[shape]) <= self.num_edge_types_by_shape[shape] - 1)
         # Not sure whether these tensors are automatically move to device
         index = torch.tensor([], dtype=torch.int16)
-        x_j = torch.tensor([], dtype=torch.float16)
+        msgs = torch.tensor([], dtype=torch.float16)
         # Loop through hyperedges with different shapes (num of src nodes)
         for shape in hyperedge_index_by_shape:
             # Loop through edge_types for every shape
@@ -51,10 +50,10 @@ class HGNNLayer(nn.Module):
                     norm = 1 / counts[revers_i]
                     tmp = norm.unsqueeze(1) * tmp
                     # Tensor with all messages
-                    x_j = torch.cat((x_j, tmp))
-        index = index.unsqueeze(1).expand_as(x_j)
+                    msgs = torch.cat((msgs, tmp))
+        index = index.unsqueeze(1).expand_as(msgs)
         # Aggregate
-        agg = scatter.scatter_add(src=x_j, index=index, out=torch.zeros_like(x), dim=0)
+        agg = scatter.scatter_add(src=msgs, index=index, out=torch.zeros_like(x), dim=0)
         # Combine
         h = self.C(x) + agg
         return h
@@ -67,18 +66,19 @@ class HGNN(nn.Module):
         self.num_layers = num_layers
         self.msg_layers = nn.ModuleList([])
         for i in range(self.num_layers):
-            self.msg_layers.append(HGNNLayer(base_dim, num_edge_types_by_shape))
-        self.lin_layer_1 = nn.Linear(base_dim, base_dim)
+            self.msg_layers.append(HGNNLayer(base_dim, base_dim, num_edge_types_by_shape))
+        # self.lin_layer_1 = nn.Linear(base_dim, base_dim)
         self.lin_layer_2 = nn.Linear(base_dim, 1)
 
     def forward(self, x, hyperedge_index, hyperedge_type):
         # Message passing layers
         for i in range(self.num_layers):
             x = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
-            x = torch.relu(x)
+            # x = torch.relu(x)
+            x = nn.functional.leaky_relu(x)
         # Two layer mlp as binary classifier
-        x = self.lin_layer_1(x)
-        x = torch.relu(x)
+        # x = self.lin_layer_1(x)
+        # x = torch.leaky_relu(x)
         x = self.lin_layer_2(x)
         x = torch.sigmoid(x)
         return x

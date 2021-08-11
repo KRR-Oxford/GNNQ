@@ -55,7 +55,6 @@ for file in val_subquery_answers_files:
     hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
 
 
-
 def objective(trial):
     base_dim = trial.suggest_int('base_dim', 8, 32)
     learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
@@ -88,12 +87,21 @@ def objective(trial):
         x_val = torch.cat((torch.ones(num_nodes_val, 1), torch.zeros(num_nodes_val, base_dim - 1)), dim=1)
 
         pred = model(x_train, hyperedge_index_train, hyperedge_type_train).flatten()
-        pred = torch.cat((pred[answers], pred[torch.randint(x_train.size()[0], size=(len(answers),))]), dim=0)
-        loss = loss_fn(pred, torch.cat((torch.ones(len(answers)), torch.zeros(len(answers))), dim = 0))
+        pred_sampled = torch.cat((pred[answers], pred[torch.randint(x_train.size()[0], size=(len(answers),))]), dim=0)
+        loss = loss_fn(pred_sampled, torch.cat((torch.ones(len(answers)), torch.zeros(len(answers))), dim = 0))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         print(epoch)
+
+        model.eval()
+        acc = accuracy(pred, y_train)
+        pre = precision(pred, y_train)
+        rec = recall(pred, y_train)
+        print('Train')
+        print(acc)
+        print(pre)
+        print(rec)
 
         if epoch % val_epochs == 0:
             model.eval()
