@@ -70,7 +70,7 @@ def create_index_matrices(triples_with_ids):
     edges = torch.tensor(triples_with_ids).t()[[0, 2]]
     edges = torch.cat((edges, edges[[1,0]]), dim=1)
     edge_type = torch.tensor(triples_with_ids).t()[1]
-    edge_type = torch.cat((edge_type, edge_type + torch.max(edge_type) + 1),dim=0)
+    edge_type = torch.cat((edge_type, edge_type + torch.max(edge_type)),dim=0)
     index_matrices_by_shape = {1: edges}
     edge_type_by_shape = {1: edge_type}
     num_edge_types_by_shape = {1: len(torch.unique(edge_type))}
@@ -95,8 +95,10 @@ def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_
 
 def create_y_vector(answers, num_nodes):
     # K - hot vector indicating all answers
-    y = torch.scatter(torch.zeros(num_nodes, dtype=torch.int16), 0, torch.tensor(answers),
-                      torch.ones(num_nodes, dtype=torch.int16))
+    y = torch.scatter(torch.zeros(num_nodes, dtype=torch.float32), 0, torch.tensor(answers),
+                      torch.ones(num_nodes, dtype=torch.float32))
+    # help = y[answers]
+    # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
 if __name__ == '__main__':

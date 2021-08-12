@@ -59,9 +59,9 @@ def objective(trial):
     # base_dim = trial.suggest_int('base_dim', 8, 32)
     base_dim = 16
     # learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
-    learning_rate = 0.1
+    learning_rate = 0.05
     # ratio_negative_samples = trial.suggest_int('ratio_negative_samples', 1, 5)
-    ratio_negative_samples = 1
+    ratio_negative_samples = 10
     num_layers = args.num_layers
     epochs = args.epochs
     val_epochs = args.val_epochs
@@ -91,17 +91,18 @@ def objective(trial):
         x_val = torch.cat((torch.ones(num_nodes_val, 1), torch.zeros(num_nodes_val, base_dim - 1)), dim=1)
 
         pred = model(x_train, hyperedge_index_train, hyperedge_type_train).flatten()
-        pred_sampled = torch.cat((pred[answers], pred[torch.randint(x_train.size()[0], size=(ratio_negative_samples * len(answers),))]), dim=0)
-        loss = loss_fn(pred_sampled, torch.cat((torch.ones(len(answers)), torch.zeros(ratio_negative_samples * len(answers))), dim = 0))
+        #pred_sampled = torch.cat((pred[answers], pred[torch.randint(x_train.size()[0], size=(ratio_negative_samples * len(answers),))]), dim=0)
+        #loss = loss_fn(pred_sampled, torch.cat((torch.ones(len(answers)), torch.zeros(ratio_negative_samples * len(answers))), dim = 0))
+        loss = loss_fn(pred, y_train)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         print(epoch)
 
         model.eval()
-        acc = accuracy(pred, y_train)
-        pre = precision(pred, y_train)
-        rec = recall(pred, y_train)
+        acc = accuracy(pred, torch.tensor(y_train, dtype=int))
+        pre = precision(pred, torch.tensor(y_train, dtype=int))
+        rec = recall(pred, torch.tensor(y_train, dtype=int))
         print('Train')
         print(acc)
         print(pre)
@@ -110,9 +111,9 @@ def objective(trial):
         if epoch % val_epochs == 0:
             model.eval()
             pred = model(x_val, hyperedge_index_val, hyperedge_type_val).flatten()
-            acc = accuracy(pred, y_val)
-            pre = precision(pred, y_val)
-            rec = recall(pred, y_val)
+            acc = accuracy(pred, torch.tensor(y_val, dtype=int))
+            pre = precision(pred, torch.tensor(y_val, dtype=int))
+            rec = recall(pred, torch.tensor(y_val, dtype=int))
             print('Val')
             print(acc)
             print(pre)
