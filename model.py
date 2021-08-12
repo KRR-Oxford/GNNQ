@@ -7,6 +7,8 @@ class HGNNLayer(nn.Module):
     def __init__(self, input_dim, output_dim, num_edge_types_by_shape):
         super(HGNNLayer, self).__init__()
         self.num_edge_types_by_shape = num_edge_types_by_shape
+        self.input_dim = input_dim
+        self.output_dim = output_dim
         # Includes bias
         self.C = torch.nn.Linear(input_dim, output_dim)
         self.A = torch.nn.ParameterDict({})
@@ -53,7 +55,7 @@ class HGNNLayer(nn.Module):
                     msgs = torch.cat((msgs, tmp))
         dest_indices = dest_indices.unsqueeze(1).expand_as(msgs)
         # Aggregate
-        agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros_like(x), dim=0)
+        agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros(x.shape[0], self.output_dim), dim=0)
         # Combine
         h = self.C(x) + agg
         return h
@@ -67,6 +69,7 @@ class HGNN(nn.Module):
         self.msg_layers = nn.ModuleList([])
         for i in range(self.num_layers):
             self.msg_layers.append(HGNNLayer(base_dim, base_dim, num_edge_types_by_shape))
+        # self.msg_layers.append(HGNNLayer(base_dim, 1, num_edge_types_by_shape))
         # self.lin_layer_1 = nn.Linear(base_dim, base_dim)
         self.lin_layer_2 = nn.Linear(base_dim, 1)
 
@@ -80,5 +83,6 @@ class HGNN(nn.Module):
         # x = self.lin_layer_1(x)
         # x = torch.leaky_relu(x)
         x = self.lin_layer_2(x)
+        # x = self.msg_layers[self.num_layers](x, hyperedge_index, hyperedge_type)
         x = torch.sigmoid(x)
         return x
