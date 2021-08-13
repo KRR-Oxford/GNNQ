@@ -31,10 +31,9 @@ val_subquery_answers_files = []
 triples = load_triples(args.train_data + '/graph.ttl')
 triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
 num_nodes = len(entity2id)
-answers = load_answers(args.train_data + '/simple_answers.pickle')
+answers = load_answers(args.train_data + '/answers.pickle')
 answers = [entity2id[entity[0]] for entity in answers]
 y_train = create_y_vector(answers, num_nodes)
-sample_weights_train = 20 * y_train + torch.ones(len(y_train))
 hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
 for file in subquery_answers_files:
     subquery_answers = load_answers(args.train_data + file)
@@ -46,10 +45,9 @@ for file in subquery_answers_files:
 triples_val = load_triples(args.val_data + '/graph.ttl')
 triples_val, entity2id_val, _, _, _ = create_triples_with_ids(triples_val, relation2id)
 num_nodes_val = len(entity2id_val)
-val_answers = load_answers(args.val_data + '/val_simple_answers.pickle')
+val_answers = load_answers(args.val_data + '/answers.pickle')
 val_answers = [entity2id_val[entity[0]] for entity in val_answers]
 y_val = create_y_vector(val_answers, num_nodes_val)
-sample_weights_val = 20 * y_val + torch.ones(len(y_val))
 hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
 for file in val_subquery_answers_files:
     subquery_answers_val = load_answers(args.val_data + file)
@@ -63,9 +61,13 @@ def objective(trial):
     # learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
     learning_rate = 0.05
     # positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 5)
+    positive_sample_weight = 20
     num_layers = args.num_layers
     epochs = args.epochs
     val_epochs = args.val_epochs
+
+    sample_weights_train = positive_sample_weight * y_train + torch.ones(len(y_train))
+    sample_weights_val = positive_sample_weight * y_val + torch.ones(len(y_val))
 
 
     model = HGNN(base_dim, num_edge_types_by_shape_train, num_layers)
@@ -94,6 +96,7 @@ def objective(trial):
         x_val = torch.cat((torch.ones(num_nodes_val, 1), torch.zeros(num_nodes_val, base_dim - 1)), dim=1)
 
         pred = model(x_train, hyperedge_index_train, hyperedge_type_train).flatten()
+        # Weigh false positive samples from the previous epoch higher to address bad recall
         loss = loss_fn(pred, y_train)
         optimizer.zero_grad()
         loss.backward()
