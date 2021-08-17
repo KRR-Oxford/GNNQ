@@ -11,22 +11,17 @@ parser = argparse.ArgumentParser(description='Bla bla')
 parser.add_argument('--train_data', type=str, default='train')
 parser.add_argument('--val_data', type=str, default='val')
 parser.add_argument('--base_dim', type=int, default=16)
-parser.add_argument('--num_layers', type=int, default=2)
+parser.add_argument('--num_layers', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=500)
 parser.add_argument('--val_epochs', type=int, default=10)
 parser.add_argument('--lr', type=int, default=0.1)
 args = parser.parse_args()
 
-# base_dim = args.base_dim
-# num_layers = args.num_layers
-# epochs = args.epochs
-# learning_rate = args.lr
-# val_epochs = args.val_epochs
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-subquery_answers_files = []
-val_subquery_answers_files = []
+subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
+val_subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
 
 triples = load_triples(args.train_data + '/graph.ttl')
 triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
@@ -34,6 +29,7 @@ num_nodes = len(entity2id)
 answers = load_answers(args.train_data + '/answers.pickle')
 answers = [entity2id[entity[0]] for entity in answers]
 y_train = create_y_vector(answers, num_nodes)
+y_train_int = y_train.int()
 hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
 for file in subquery_answers_files:
     subquery_answers = load_answers(args.train_data + file)
@@ -48,6 +44,7 @@ num_nodes_val = len(entity2id_val)
 val_answers = load_answers(args.val_data + '/answers.pickle')
 val_answers = [entity2id_val[entity[0]] for entity in val_answers]
 y_val = create_y_vector(val_answers, num_nodes_val)
+y_val_int = y_val.int()
 hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
 for file in val_subquery_answers_files:
     subquery_answers_val = load_answers(args.val_data + file)
@@ -59,9 +56,9 @@ def objective(trial):
     # base_dim = trial.suggest_int('base_dim', 8, 32)
     base_dim = 16
     # learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
-    learning_rate = 0.05
+    learning_rate = 0.1
     # positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 5)
-    positive_sample_weight = 20
+    positive_sample_weight = 1
     num_layers = args.num_layers
     epochs = args.epochs
     val_epochs = args.val_epochs
@@ -76,7 +73,8 @@ def objective(trial):
         print(type(param.data), param.size())
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+    # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
     loss_fn = torch.nn.BCELoss(weight=sample_weights_train)
     loss_fn_val = torch.nn.BCELoss(weight=sample_weights_val)
 
@@ -101,34 +99,36 @@ def objective(trial):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print(epoch)
+        print('Epoch-{0} lr: {1}'.format(epoch, lr_scheduler.get_last_lr()))
 
         model.eval()
-        acc = accuracy(pred, torch.tensor(y_train.clone().detach(), dtype=int))
-        pre = precision(pred, torch.tensor(y_train.clone().detach(), dtype=int))
-        rec = recall(pred, torch.tensor(y_train.clone().detach(), dtype=int))
+
+        acc = accuracy(pred, y_train_int)
+        pre = precision(pred, y_train_int)
+        rec = recall(pred, y_train_int)
         print('Train')
         print(loss)
         print(acc)
         print(pre)
         print(rec)
 
-        if epoch % val_epochs == 0:
+        if (epoch % val_epochs == 0) & (epoch != 0):
             model.eval()
             pred = model(x_val, hyperedge_index_val, hyperedge_type_val).flatten()
-            acc = accuracy(pred, torch.tensor(y_val.clone().detach(), dtype=int))
-            pre = precision(pred, torch.tensor(y_val.clone().detach(), dtype=int))
-            rec = recall(pred, torch.tensor(y_val.clone().detach(), dtype=int))
+            acc = accuracy(pred, y_val_int)
+            pre = precision(pred, y_val_int)
+            rec = recall(pred, y_val_int)
             loss = loss_fn_val(pred, y_val)
-            lr_scheduler.step(loss)
+            # lr_scheduler.step(loss)
+            lr_scheduler.step()
 
-            print(lr_scheduler._last_lr)
+            # print(lr_scheduler._last_lr)
             print('Val')
             print(loss)
             print(acc)
             print(pre)
             print(rec)
-            trial.report(pre, epoch)
+            trial.report(loss, epoch)
 
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
@@ -138,7 +138,7 @@ def objective(trial):
 
 
 
-study = optuna.create_study(direction='maximize')
+study = optuna.create_study(direction='minimize')
 study.optimize(objective, n_trials=1)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])

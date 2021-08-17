@@ -82,6 +82,7 @@ def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_
         if len(tuple) - 1 not in index_matrices_by_shape:
             index_matrices_by_shape[len(tuple) - 1] = torch.stack((tuple[1:], tuple[0].repeat(len(tuple) - 1)),
                                                                    dim=0)
+            # Implement logic to give new tuples different id if other tuples with same size where already added
             edge_type_by_shape[len(tuple) - 1] = torch.tensor([0])
         else:
             index_matrices_by_shape[len(tuple) - 1] = torch.cat((index_matrices_by_shape[len(tuple) - 1], torch.stack(
@@ -113,7 +114,7 @@ if __name__ == '__main__':
     subquery = 'SELECT distinct ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 }'
     subquery2 = 'SELECT distinct ?v4 ?v5 ?v6 ?v7 ?v8  WHERE {  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     simple_query = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4  }'
-    save_query_answers(args.val_data + '/graph.ttl' , simple_query, 'val_simple_answers.pickle')
+    save_query_answers('train_large_2/graph.ttl' , subquery, 'subquery_answers.pickle')
     # answers = load_answers('subquery_answers.pickle')
     print('Done')
 
