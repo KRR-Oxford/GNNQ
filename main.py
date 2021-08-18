@@ -56,9 +56,14 @@ def objective(trial):
     # base_dim = trial.suggest_int('base_dim', 8, 32)
     base_dim = 16
     # learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
-    learning_rate = 0.1
+    learning_rate = 0.01
     # positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 5)
     positive_sample_weight = 1
+    # negative_slope = trial.suggest_float('negative_slope', 1e-5, 1e-1, log=True)
+    negative_slope = 0.1
+    # lr_scheduler_step_size = trial.suggest_int('lr_scheduler_step_size', 1, 10)
+    lr_scheduler_step_size = 2
+
     num_layers = args.num_layers
     epochs = args.epochs
     val_epochs = args.val_epochs
@@ -74,8 +79,8 @@ def objective(trial):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
-    loss_fn = torch.nn.BCELoss(weight=sample_weights_train)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_scheduler_step_size, gamma=0.5)
+    loss_fn = torch.nn.BCEWithLogitsLoss(weight=sample_weights_train)
     loss_fn_val = torch.nn.BCELoss(weight=sample_weights_val)
 
     accuracy = Accuracy(threshold=0.5)
@@ -93,7 +98,7 @@ def objective(trial):
         x_train = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, base_dim - 1)), dim=1)
         x_val = torch.cat((torch.ones(num_nodes_val, 1), torch.zeros(num_nodes_val, base_dim - 1)), dim=1)
 
-        pred = model(x_train, hyperedge_index_train, hyperedge_type_train).flatten()
+        pred = model(x_train, hyperedge_index_train, hyperedge_type_train,logits=True, negative_slope=0.1).flatten()
         # Weigh false positive samples from the previous epoch higher to address bad recall
         loss = loss_fn(pred, y_train)
         optimizer.zero_grad()
@@ -102,7 +107,7 @@ def objective(trial):
         print('Epoch-{0} lr: {1}'.format(epoch, lr_scheduler.get_last_lr()))
 
         model.eval()
-
+        pred = torch.sigmoid(pred)
         acc = accuracy(pred, y_train_int)
         pre = precision(pred, y_train_int)
         rec = recall(pred, y_train_int)
@@ -113,7 +118,6 @@ def objective(trial):
         print(rec)
 
         if (epoch % val_epochs == 0) & (epoch != 0):
-            model.eval()
             pred = model(x_val, hyperedge_index_val, hyperedge_type_val).flatten()
             acc = accuracy(pred, y_val_int)
             pre = precision(pred, y_val_int)

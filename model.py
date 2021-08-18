@@ -73,16 +73,16 @@ class HGNN(nn.Module):
         # self.lin_layer_1 = nn.Linear(base_dim, base_dim)
         self.lin_layer_2 = nn.Linear(base_dim, 1)
 
-    def forward(self, x, hyperedge_index, hyperedge_type):
+    def forward(self, x, hyperedge_index, hyperedge_type, logits=False, negative_slope=0.01):
         # Message passing layers
         for i in range(self.num_layers):
             x = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
             # x = torch.relu(x)
-            x = nn.functional.leaky_relu(x)
+            x = nn.functional.leaky_relu(x, negative_slope=negative_slope)
         # Two layer mlp as binary classifier
         # x = self.lin_layer_1(x)
-        # x = torch.leaky_relu(x)
+        # x = nn.functional.leaky_relu(x)
         x = self.lin_layer_2(x)
         # x = self.msg_layers[self.num_layers](x, hyperedge_index, hyperedge_type)
-        x = torch.sigmoid(x)
-        return x
+        if logits: return x
+        return torch.sigmoid(x)

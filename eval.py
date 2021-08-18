@@ -14,7 +14,7 @@ parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=4)
 args = parser.parse_args()
 
-val_subquery_answers_files = ['/subquery_answers2.pickle']
+val_subquery_answers_files = []
 
 triples = load_triples(args.train_data + '/graph.ttl')
 _, _, relation2id, _, _ = create_triples_with_ids(triples)
