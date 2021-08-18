@@ -8,13 +8,16 @@ import optuna
 from optuna.trial import TrialState
 
 parser = argparse.ArgumentParser(description='Bla bla')
-parser.add_argument('--train_data', type=str, default='train')
+parser.add_argument('--train_data', type=str, default='train_large_2')
 parser.add_argument('--val_data', type=str, default='val')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=500)
 parser.add_argument('--val_epochs', type=int, default=10)
 parser.add_argument('--lr', type=int, default=0.1)
+parser.add_argument('--lr_scheduler_step_size', type=int, default=2)
+parser.add_argument('--negative_slope', type=int, default=0.1)
+parser.add_argument('--positive_sample_weight', type=int, default=1)
 args = parser.parse_args()
 
 
@@ -53,20 +56,21 @@ for file in val_subquery_answers_files:
 
 
 def objective(trial):
-    # base_dim = trial.suggest_int('base_dim', 8, 32)
-    base_dim = 16
-    # learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
-    learning_rate = 0.01
-    # positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 5)
-    positive_sample_weight = 1
-    # negative_slope = trial.suggest_float('negative_slope', 1e-5, 1e-1, log=True)
-    negative_slope = 0.1
-    # lr_scheduler_step_size = trial.suggest_int('lr_scheduler_step_size', 1, 10)
-    lr_scheduler_step_size = 2
-
+    base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
     val_epochs = args.val_epochs
+    learning_rate = args.lr
+    lr_scheduler_step_size = args.lr_scheduler_step_size
+    negative_slope = args.negative_slope
+    positive_sample_weight = args.positive_sample_weight
+
+    base_dim = trial.suggest_int('base_dim', 8, 32)
+    num_layers = trial.suggest_int('positive_sample_weight', 1, 4)
+    learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+    lr_scheduler_step_size = trial.suggest_int('lr_scheduler_step_size', 1, 10)
+    positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 20)
+    negative_slope = trial.suggest_float('negative_slope',0.1, 0.01, step=0.1)
 
     sample_weights_train = positive_sample_weight * y_train + torch.ones(len(y_train))
     sample_weights_val = positive_sample_weight * y_val + torch.ones(len(y_val))
@@ -98,7 +102,7 @@ def objective(trial):
         x_train = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, base_dim - 1)), dim=1)
         x_val = torch.cat((torch.ones(num_nodes_val, 1), torch.zeros(num_nodes_val, base_dim - 1)), dim=1)
 
-        pred = model(x_train, hyperedge_index_train, hyperedge_type_train,logits=True, negative_slope=0.1).flatten()
+        pred = model(x_train, hyperedge_index_train, hyperedge_type_train,logits=True, negative_slope=negative_slope).flatten()
         # Weigh false positive samples from the previous epoch higher to address bad recall
         loss = loss_fn(pred, y_train)
         optimizer.zero_grad()
@@ -143,7 +147,7 @@ def objective(trial):
 
 
 study = optuna.create_study(direction='minimize')
-study.optimize(objective, n_trials=1)
+study.optimize(objective, n_trials=100)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
 complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
