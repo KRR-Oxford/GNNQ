@@ -3,17 +3,19 @@ from model import HGNN
 from utils import load_triples, load_answers, create_triples_with_ids, create_y_vector, create_index_matrices, add_tuples_to_index_matrices
 import numpy as np
 import argparse
-from torchmetrics import Accuracy, Precision, Recall
+import torchmetrics
 import optuna
 from optuna.trial import TrialState
 
+# ToDo: Add logic to corrupt datasets
+
 parser = argparse.ArgumentParser(description='Bla bla')
-parser.add_argument('--train_data', type=str, default='train_large_2')
-parser.add_argument('--val_data', type=str, default='val')
+parser.add_argument('--train_data', type=str, default='dataset1')
+parser.add_argument('--val_data', type=str, default='dataset2')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=500)
-parser.add_argument('--val_epochs', type=int, default=10)
+parser.add_argument('--val_epochs', type=int, default=1)
 parser.add_argument('--lr', type=int, default=0.1)
 parser.add_argument('--lr_scheduler_step_size', type=int, default=2)
 parser.add_argument('--negative_slope', type=int, default=0.1)
@@ -25,34 +27,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
 val_subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
-
-triples = load_triples(args.train_data + '/graph.ttl')
-triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
-num_nodes = len(entity2id)
-answers = load_answers(args.train_data + '/answers.pickle')
-answers = [entity2id[entity[0]] for entity in answers]
-y_train = create_y_vector(answers, num_nodes)
-y_train_int = y_train.int()
-hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
-for file in subquery_answers_files:
-    subquery_answers = load_answers(args.train_data + file)
-    subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
-    hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = add_tuples_to_index_matrices(
-        subquery_answers, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train)
-
-
-triples_val = load_triples(args.val_data + '/graph.ttl')
-triples_val, entity2id_val, _, _, _ = create_triples_with_ids(triples_val, relation2id)
-num_nodes_val = len(entity2id_val)
-val_answers = load_answers(args.val_data + '/answers.pickle')
-val_answers = [entity2id_val[entity[0]] for entity in val_answers]
-y_val = create_y_vector(val_answers, num_nodes_val)
-y_val_int = y_val.int()
-hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
-for file in val_subquery_answers_files:
-    subquery_answers_val = load_answers(args.val_data + file)
-    subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
-    hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
 
 
 def objective(trial):
@@ -72,6 +46,40 @@ def objective(trial):
     positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 20)
     negative_slope = trial.suggest_float('negative_slope',0.01, 0.2, step=0.01)
 
+    # ToDo: Change objective function such that multiple graphs can be used for training
+    triples = load_triples(args.train_data + '/graph.ttl')
+    triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
+    num_nodes = len(entity2id)
+    answers = load_answers(args.train_data + '/answers.pickle')
+    answers = [entity2id[entity[0]] for entity in answers]
+    x_train = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, base_dim - 1)), dim=1)
+    y_train = create_y_vector(answers, num_nodes)
+    y_train_int = y_train.int()
+    hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
+    for file in subquery_answers_files:
+        subquery_answers = load_answers(args.train_data + file)
+        subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
+        hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = add_tuples_to_index_matrices(
+            subquery_answers, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train)
+
+    triples_val = load_triples(args.val_data + '/graph.ttl')
+    triples_val, entity2id_val, _, _, _ = create_triples_with_ids(triples_val, relation2id)
+    num_nodes_val = len(entity2id_val)
+    val_answers = load_answers(args.val_data + '/answers.pickle')
+    val_answers = [entity2id_val[entity[0]] for entity in val_answers]
+    x_val = torch.cat((torch.ones(num_nodes_val, 1), torch.zeros(num_nodes_val, base_dim - 1)), dim=1)
+    y_val = create_y_vector(val_answers, num_nodes_val)
+    y_val_int = y_val.int()
+    hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = create_index_matrices(triples_val)
+    for file in val_subquery_answers_files:
+        subquery_answers_val = load_answers(args.val_data + file)
+        subquery_answers_val = [[entity2id_val[entity] for entity in answer] for answer in subquery_answers_val]
+        hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val = add_tuples_to_index_matrices(
+            subquery_answers_val, hyperedge_index_val, hyperedge_type_val, num_edge_types_by_shape_val)
+
+
+
+
     sample_weights_train = positive_sample_weight * y_train + torch.ones(len(y_train))
     sample_weights_val = positive_sample_weight * y_val + torch.ones(len(y_val))
 
@@ -88,20 +96,9 @@ def objective(trial):
     loss_fn = torch.nn.BCEWithLogitsLoss(weight=sample_weights_train)
     loss_fn_val = torch.nn.BCELoss(weight=sample_weights_val)
 
-    accuracy = Accuracy(threshold=0.5)
-    precision = Precision(threshold=0.5)
-    recall = Recall(threshold=0.5)
-
-    acc = 0
-    pre = 0
-    rec = 0
-
     for epoch in range(epochs):
         model.train()
 
-
-        x_train = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, base_dim - 1)), dim=1)
-        x_val = torch.cat((torch.ones(num_nodes_val, 1), torch.zeros(num_nodes_val, base_dim - 1)), dim=1)
 
         pred = model(x_train, hyperedge_index_train, hyperedge_type_train,logits=True, negative_slope=negative_slope).flatten()
         # Weigh false positive samples from the previous epoch higher to address bad recall
@@ -112,38 +109,38 @@ def objective(trial):
         print('Epoch-{0} lr: {1}'.format(epoch, lr_scheduler.get_last_lr()))
 
         model.eval()
+
+        #ToDo: Add auc score as metric
         pred = torch.sigmoid(pred)
-        acc = accuracy(pred, y_train_int)
-        pre = precision(pred, y_train_int)
-        rec = recall(pred, y_train_int)
         print('Train')
         print(loss)
-        print(acc)
-        print(pre)
-        print(rec)
+        print(torchmetrics.functional.accuracy(pred, y_train_int, threshold=0.5))
+        print(torchmetrics.functional.precision(pred, y_train_int, threshold=0.5))
+        print(torchmetrics.functional.recall(pred, y_train_int, threshold=0.5))
+        print(torchmetrics.functional.auc(pred, y_train_int,reorder=True))
 
         if (epoch % val_epochs == 0) & (epoch != 0):
-            pred = model(x_val, hyperedge_index_val, hyperedge_type_val).flatten()
-            acc = accuracy(pred, y_val_int)
-            pre = precision(pred, y_val_int)
-            rec = recall(pred, y_val_int)
+            pred = model(x_val, hyperedge_index_val, hyperedge_type_val, negative_slope=negative_slope).flatten()
             loss = loss_fn_val(pred, y_val)
+            trial.report(loss, epoch)
+
             # lr_scheduler.step(loss)
             lr_scheduler.step()
 
-            # print(lr_scheduler._last_lr)
             print('Val')
             print(loss)
-            print(acc)
-            print(pre)
-            print(rec)
-            trial.report(loss, epoch)
+            print(torchmetrics.functional.accuracy(pred, y_val_int, threshold=0.5))
+            print(torchmetrics.functional.recall(pred, y_val_int, threshold=0.5))
+            print(torchmetrics.functional.precision(pred, y_val_int, threshold=0.5))
+            # print(torchmetrics.functional.auc(pred, y_val_int, reorder=True))
+
 
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
 
     torch.save(model.state_dict(), './models/' +'trial{}.pt'.format(trial.number))
-    return pre
+    # Report best metric -- can this be different from the metric used for trial report
+    return loss
 
 
 

@@ -102,6 +102,23 @@ def create_y_vector(answers, num_nodes):
     # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
+# ToDo: Find
+def create_data_object(train, val, subquery_answers_files,):
+    triples = load_triples(train)
+    triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
+    num_nodes = len(entity2id)
+    answers = load_answers(val)
+    answers = [entity2id[entity[0]] for entity in answers]
+    y_train = create_y_vector(answers, num_nodes)
+    y_train_int = y_train.int()
+    hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
+    for file in subquery_answers_files:
+        subquery_answers = load_answers(args.train_data + file)
+        subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
+        hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = add_tuples_to_index_matrices(
+            subquery_answers, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train)
+    data_object = {}
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Bla bla')
     parser.add_argument('--train_data', type=str, default='train')
@@ -114,7 +131,7 @@ if __name__ == '__main__':
     subquery = 'SELECT distinct ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 }'
     subquery2 = 'SELECT distinct ?v4 ?v5 ?v6 ?v7 ?v8  WHERE {  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
 
-    directory = 'dataset2/'
+    directory = 'dataset3/'
     save_query_answers(directory + 'graph.ttl' , query, directory + 'answers.pickle')
     save_query_answers(directory + 'graph.ttl', subquery, directory + 'subquery_answers.pickle')
     save_query_answers(directory + 'graph.ttl', subquery2, directory + 'subquery_answers2.pickle')
