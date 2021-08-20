@@ -66,11 +66,11 @@ def objective(trial):
     positive_sample_weight = args.positive_sample_weight
 
     base_dim = trial.suggest_int('base_dim', 8, 32)
-    num_layers = trial.suggest_int('positive_sample_weight', 1, 4)
-    learning_rate = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+    num_layers = trial.suggest_int('num_layers', 1, 4)
+    learning_rate = trial.suggest_float("lr", 0.001, 0.1, step=0.001)
     lr_scheduler_step_size = trial.suggest_int('lr_scheduler_step_size', 1, 10)
     positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 20)
-    negative_slope = trial.suggest_float('negative_slope',0.1, 0.01, step=0.1)
+    negative_slope = trial.suggest_float('negative_slope',0.01, 0.2, step=0.01)
 
     sample_weights_train = positive_sample_weight * y_train + torch.ones(len(y_train))
     sample_weights_val = positive_sample_weight * y_val + torch.ones(len(y_val))
@@ -81,6 +81,7 @@ def objective(trial):
     for param in model.parameters():
         print(type(param.data), param.size())
 
+    # Adam optimizer already updates the learning rate
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_scheduler_step_size, gamma=0.5)
@@ -146,7 +147,8 @@ def objective(trial):
 
 
 
-study = optuna.create_study(direction='minimize')
+study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
+        n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
 study.optimize(objective, n_trials=100)
 
 pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
