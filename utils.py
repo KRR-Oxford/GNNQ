@@ -5,20 +5,6 @@ from rdflib import Graph, URIRef
 import argparse
 import pickle
 
-def load_triples(file):
-    triples = []
-    with open(file) as f:
-        file_data = [re.search('(.+?)\s+(.+?)\s+(.+)\s*\.',line) for line in f.read().split('\n')[:-1]]
-    # Save the triplets corresponding to only the known relations
-    for line in file_data:
-        triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
-    return triples
-
-def load_answers(path_to_answers):
-    with open(path_to_answers, 'rb') as f:
-        answers = pickle.load(f)
-    return answers
-
 def save_query_answers(path_to_graph, query_string, path_to_output):
     g = Graph()
     g.parse(path_to_graph, format="turtle")
@@ -33,6 +19,21 @@ def save_query_answers(path_to_graph, query_string, path_to_output):
 
     with open(path_to_output, 'wb') as f:
         pickle.dump(answers, f)
+
+def load_triples(file):
+    triples = []
+    with open(file) as f:
+        file_data = [re.search('(.+?)\s+(.+?)\s+(.+)\s*\.',line) for line in f.read().split('\n')[:-1]]
+    # Save the triplets corresponding to only the known relations
+    for line in file_data:
+        triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
+    return triples
+
+def load_answers(path_to_answers):
+    with open(path_to_answers, 'rb') as f:
+        answers = pickle.load(f)
+    return answers
+
 
 def create_triples_with_ids(triples, relation2id=None):
     entity2id = {}
@@ -102,22 +103,21 @@ def create_y_vector(answers, num_nodes):
     # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
-# ToDo: Find
-def create_data_object(train, val, subquery_answers_files,):
-    triples = load_triples(train)
-    triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples)
+def create_data_object(path_to_graph, path_to_answers, paths_to_subquery_answers, base_dim, relation2id=None):
+    triples = load_triples(path_to_graph)
+    triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples, relation2id)
     num_nodes = len(entity2id)
-    answers = load_answers(val)
-    answers = [entity2id[entity[0]] for entity in answers]
-    y_train = create_y_vector(answers, num_nodes)
-    y_train_int = y_train.int()
-    hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = create_index_matrices(triples)
-    for file in subquery_answers_files:
-        subquery_answers = load_answers(args.train_data + file)
+    path_to_answers = load_answers(path_to_answers)
+    path_to_answers = [entity2id[entity[0]] for entity in path_to_answers]
+    x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, base_dim - 1)), dim=1)
+    y = create_y_vector(path_to_answers, num_nodes)
+    hyperedge_indices, hyperedge_types, num_edge_types_by_shape = create_index_matrices(triples)
+    for file in paths_to_subquery_answers:
+        subquery_answers = load_answers(file)
         subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
-        hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train = add_tuples_to_index_matrices(
-            subquery_answers, hyperedge_index_train, hyperedge_type_train, num_edge_types_by_shape_train)
-    data_object = {}
+        hyperedge_indices, hyperedge_types, num_edge_types_by_shape = add_tuples_to_index_matrices(
+            subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
+    return {'hyperedge_indices':hyperedge_indices, 'hyperedge_types':hyperedge_types, 'num_edge_types_by_shape':num_edge_types_by_shape,'x':x,'y':y}, relation2id
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Bla bla')

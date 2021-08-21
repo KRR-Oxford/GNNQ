@@ -48,8 +48,8 @@ pred_index = (pred >= 0.5).nonzero(as_tuple=True)[0].tolist()
 false_positive = list(set(pred_index) - set(val_answers))
 predictions = [id2entity_val[entity] for entity in false_positive]
 print(predictions)
-print('Accuracy ' + str(torchmetrics.functional.accuracy(pred, y_val_int, threshold=0.9).item()))
-print('Precision ' + str(torchmetrics.functional.precision(pred, y_val_int, threshold=0.9).item()))
-print('Recall ' + str(torchmetrics.functional.recall(pred, y_val_int, threshold=0.9).item()))
+print('Accuracy ' + str(torchmetrics.functional.accuracy(pred, y_val_int, threshold=0.5).item()))
+print('Precision ' + str(torchmetrics.functional.precision(pred, y_val_int, threshold=0.5).item()))
+print('Recall ' + str(torchmetrics.functional.recall(pred, y_val_int, threshold=0.5).item()))
 # ToDo: Figure out why this returns results below 0.5
 # print('AUC ' + str(torchmetrics.functional.auc(pred, y_val_int, reorder=True).item()))
