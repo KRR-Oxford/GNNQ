@@ -114,9 +114,7 @@ def objective(trial):
                 pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'], negative_slope=negative_slope).flatten()
                 # Weigh false positive samples from the previous epoch higher to address bad recall
                 sample_weights_val = positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
-                loss = torch.nn.functional.binary_cross_entropy(pred, data_object['y'],weight=sample_weights_val)
-                loss.backward()
-                total_loss = total_loss + loss
+                total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'],weight=sample_weights_val)
                 pred = torch.sigmoid(pred)
                 val_accuracy(pred, data_object['y'].int())
                 val_precision(pred, data_object['y'].int())
@@ -130,9 +128,9 @@ def objective(trial):
             print('Accuracy ' + str(val_accuracy.compute().item()))
             print('Precision ' + str(val_precision.compute().item()))
             print('Recall ' + str(val_recall.compute().item()))
-            train_accuracy.reset()
-            train_precision.reset()
-            train_recall.reset()
+            val_accuracy.reset()
+            val_precision.reset()
+            val_recall.reset()
 
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
