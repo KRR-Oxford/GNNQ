@@ -4,6 +4,7 @@ import numpy as np
 from rdflib import Graph, URIRef
 import argparse
 import pickle
+import uuid
 
 def save_query_answers(path_to_graph, query_string, path_to_output):
     g = Graph()
@@ -29,11 +30,32 @@ def load_triples(file):
         triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
     return triples
 
+def corrupt_graph(relations, path_to_graph , paths_length, drop_prop):
+    i = 0
+    g = Graph()
+    g.parse(path_to_graph, format="turtle")
+    for r in relations:
+        for s, p, o in g:
+            if str(p) == r:
+                print(1)
+                if paths_length[i] == 1:
+                    g.add((s, URIRef(str(p) + str(1)), o))
+                else:
+                    g.add((s, URIRef(str(p) + str(1)), URIRef("http://dummyentities.com/" + str(uuid.uuid4()))))
+                    for j in range(2, paths_length[i]):
+                        g.add((URIRef("http://dummyentities.com/" + str(uuid.uuid4())), URIRef(str(p) + str(j)), URIRef("http://dummyentities.com/" + str(uuid.uuid4()))))
+                    g.add((URIRef("http://dummyentities.com/" + str(uuid.uuid4())), URIRef(str(p) + str(paths_length[i])), o))
+                drop = torch.bernoulli(p=drop_prop, input=torch.tensor([0])).item() == 1
+                if drop:
+                    g.remove((s,p,o))
+        i = i + 1
+    g.serialize(destination='dataset.nt',format='nt')
+
+
 def load_answers(path_to_answers):
     with open(path_to_answers, 'rb') as f:
         answers = pickle.load(f)
     return answers
-
 
 def create_triples_with_ids(triples, relation2id=None):
     entity2id = {}
@@ -130,11 +152,12 @@ if __name__ == '__main__':
     query = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     subquery = 'SELECT distinct ?v0 ?v1 ?v3 ?v4 ?v5 ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 }'
     subquery2 = 'SELECT distinct ?v4 ?v5 ?v6 ?v7 ?v8  WHERE {  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
+    subquery3 = 'SELECT distinct ?v6 ?v7 ?v8  WHERE {  ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
 
-    directory = 'dataset3/'
-    save_query_answers(directory + 'graph.ttl' , query, directory + 'answers.pickle')
+    directory = 'dataset3_corrupted/'
+    # save_query_answers(directory + 'graph.ttl' , query, directory + 'answers.pickle')
     save_query_answers(directory + 'graph.ttl', subquery, directory + 'subquery_answers.pickle')
-    save_query_answers(directory + 'graph.ttl', subquery2, directory + 'subquery_answers2.pickle')
+    save_query_answers(directory + 'graph.ttl', subquery3, directory + 'subquery_answers3.pickle')
     # answers = load_answers('subquery_answers.pickle')
     print('Done')
 

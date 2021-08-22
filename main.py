@@ -58,7 +58,7 @@ def objective(trial):
 
     for directory in val_data_directories:
         data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'answers.pickle',
-                           [directory + file for file in subquery_answers_files], base_dim, relation2id)
+                           [directory + file for file in val_subquery_answers_files], base_dim, relation2id)
         val_data.append(data_object)
 
 
@@ -115,7 +115,6 @@ def objective(trial):
                 # Weigh false positive samples from the previous epoch higher to address bad recall
                 sample_weights_val = positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
                 total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'],weight=sample_weights_val)
-                pred = torch.sigmoid(pred)
                 val_accuracy(pred, data_object['y'].int())
                 val_precision(pred, data_object['y'].int())
                 val_recall(pred, data_object['y'].int())
