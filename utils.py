@@ -27,7 +27,8 @@ def load_triples(file):
         file_data = [re.search('(.+?)\s+(.+?)\s+(.+)\s*\.',line) for line in f.read().split('\n')[:-1]]
     # Save the triplets corresponding to only the known relations
     for line in file_data:
-        triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
+        if line:
+            triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
     return triples
 
 def corrupt_graph(relations, path_to_graph , paths_length, drop_prop):

@@ -10,8 +10,8 @@ from optuna.trial import TrialState
 # ToDo: Add logic to corrupt datasets
 
 parser = argparse.ArgumentParser(description='Bla bla')
-parser.add_argument('--train_data', type=str, default='dataset1')
-parser.add_argument('--val_data', type=str, default='train')
+# parser.add_argument('--train_data', type=str, default='dataset1_')
+# parser.add_argument('--val_data', type=str, default='train')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=500)
@@ -25,11 +25,11 @@ args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-train_data_directories = ['dataset1/', 'train/']
-val_data_directories = ['dataset2/']
+train_data_directories = ['dataset1_corrupted/']
+val_data_directories = ['dataset2_corrupted/']
 
-subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
-val_subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers2.pickle']
+subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers3.pickle']
+val_subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers3.pickle']
 
 def objective(trial):
     base_dim = args.base_dim
@@ -62,7 +62,6 @@ def objective(trial):
         val_data.append(data_object)
 
 
-    # ToDo: Change objective function such that multiple graphs can be used for training
     model = HGNN(base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
     model.to(device)
     for param in model.parameters():
