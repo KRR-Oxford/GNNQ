@@ -155,7 +155,7 @@ if __name__ == '__main__':
     subquery2 = 'SELECT distinct ?v4 ?v5 ?v6 ?v7 ?v8  WHERE {  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     subquery3 = 'SELECT distinct ?v6 ?v7 ?v8  WHERE {  ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
 
-    directory = 'dataset3_corrupted/'
+    directory = 'dataset1_pretrain/'
     # save_query_answers(directory + 'graph.ttl' , query, directory + 'answers.pickle')
     save_query_answers(directory + 'graph.ttl', subquery, directory + 'subquery_answers.pickle')
     save_query_answers(directory + 'graph.ttl', subquery3, directory + 'subquery_answers3.pickle')

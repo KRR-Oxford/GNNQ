@@ -6,15 +6,20 @@ import argparse
 import torchmetrics
 import optuna
 from optuna.trial import TrialState
+import pickle
 
 # ToDo: Add logic to corrupt datasets
 
 parser = argparse.ArgumentParser(description='Bla bla')
-# parser.add_argument('--train_data', type=str, default='dataset1_')
-# parser.add_argument('--val_data', type=str, default='train')
+parser.add_argument('--train_data', nargs='+', type=str, default=['dataset1_corrupted/'])
+parser.add_argument('--val_data', type=str, nargs='+', default=['dataset2_corrupted/'])
+parser.add_argument('--train_subqueries', nargs='+', type=str, default=['/subquery_answers.pickle','/subquery_answers3.pickle'])
+parser.add_argument('--val_subqueries', nargs='+', type=str, default=['/subquery_answers.pickle','/subquery_answers3.pickle'])
+parser.add_argument('--pretrained_model', type=str, default='pretrain/trial0.pt')
+parser.add_argument('--encoding', type=str, default='pretrain/relation2id.pickle')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=4)
-parser.add_argument('--epochs', type=int, default=500)
+parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--val_epochs', type=int, default=10)
 parser.add_argument('--lr', type=int, default=0.01)
 parser.add_argument('--lr_scheduler_step_size', type=int, default=2)
@@ -25,13 +30,11 @@ args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-train_data_directories = ['dataset1_corrupted/']
-val_data_directories = ['dataset2_corrupted/']
-
-subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers3.pickle']
-val_subquery_answers_files = ['/subquery_answers.pickle','/subquery_answers3.pickle']
-
 def objective(trial):
+    train_data_directories = args.train_data
+    val_data_directories = args.val_data
+    subquery_answers_files = args.train_subqueries
+    val_subquery_answers_files = args.val_subqueries
     base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
@@ -51,7 +54,11 @@ def objective(trial):
     train_data = []
     val_data = []
 
-    relation2id = None
+    if args.encoding:
+        with open(args.encoding, 'rb') as f:
+            relation2id = pickle.load(f)
+    else:
+        relation2id = None
     for directory in train_data_directories:
         data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'answers.pickle', [directory + file for file in subquery_answers_files], base_dim, relation2id)
         train_data.append(data_object)
@@ -66,6 +73,9 @@ def objective(trial):
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
+
+    if args.pretrained_model:
+        model.load_state_dict(torch.load(args.pretrained_model))
 
     # Adam optimizer already updates the learning rate
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -134,6 +144,8 @@ def objective(trial):
                 raise optuna.exceptions.TrialPruned()
 
     torch.save(model.state_dict(), './models/' +'trial{}.pt'.format(trial.number))
+    with open('./models/' + 'relation2id.pickle', 'wb') as f:
+        pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
     return loss
 
