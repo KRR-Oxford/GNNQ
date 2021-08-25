@@ -13,10 +13,10 @@ import pickle
 parser = argparse.ArgumentParser(description='Bla bla')
 parser.add_argument('--train_data', nargs='+', type=str, default=['dataset1_corrupted/'])
 parser.add_argument('--val_data', type=str, nargs='+', default=['dataset2_corrupted/'])
-parser.add_argument('--train_subqueries', nargs='+', type=str, default=['/subquery_answers.pickle','/subquery_answers3.pickle'])
-parser.add_argument('--val_subqueries', nargs='+', type=str, default=['/subquery_answers.pickle','/subquery_answers3.pickle'])
-parser.add_argument('--pretrained_model', type=str, default='pretrain/trial0.pt')
-parser.add_argument('--encoding', type=str, default='pretrain/relation2id.pickle')
+parser.add_argument('--train_subqueries', nargs='+', type=str, default=['/2subquery_answers1.pickle','/2subquery_answers2.pickle','/2subquery_answers3.pickle'])
+parser.add_argument('--val_subqueries', nargs='+', type=str, default=['/2subquery_answers1.pickle','/2subquery_answers2.pickle','/2subquery_answers3.pickle'])
+parser.add_argument('--pretrained_model', type=str, default='')
+parser.add_argument('--encoding', type=str, default='')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=200)
@@ -60,11 +60,11 @@ def objective(trial):
     else:
         relation2id = None
     for directory in train_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'answers.pickle', [directory + file for file in subquery_answers_files], base_dim, relation2id)
+        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + '2answers.pickle', [directory + file for file in subquery_answers_files], base_dim, relation2id)
         train_data.append(data_object)
 
     for directory in val_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'answers.pickle',
+        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + '2answers.pickle',
                            [directory + file for file in val_subquery_answers_files], base_dim, relation2id)
         val_data.append(data_object)
 
