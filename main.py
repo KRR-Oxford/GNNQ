@@ -7,6 +7,7 @@ import torchmetrics
 import optuna
 from optuna.trial import TrialState
 import pickle
+from torch.utils.tensorboard import SummaryWriter
 
 # ToDo: Add logic to corrupt datasets
 
@@ -31,6 +32,8 @@ args = parser.parse_args()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def objective(trial):
+    writer = SummaryWriter()
+
     train_data_directories = args.train_data
     val_data_directories = args.val_data
     subquery_answers_files = args.train_subqueries
@@ -92,12 +95,14 @@ def objective(trial):
         print('Epoch-{0} lr: {1}'.format(epoch, lr_scheduler.get_last_lr()))
         model.train()
         optimizer.zero_grad()
+        total_train_loss = 0
         for data_object in train_data:
             pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'], logits=True, negative_slope=negative_slope).flatten()
             # Weigh false positive samples from the previous epoch higher to address bad recall
             sample_weights_train = positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, data_object['y'],weight=sample_weights_train)
             loss.backward()
+            total_train_loss = total_train_loss + loss
             print('Train loss')
             print(loss)
             pred = torch.sigmoid(pred)
@@ -109,10 +114,16 @@ def objective(trial):
         model.eval()
 
         #ToDo: Add auc score as metric
+        acc = train_accuracy.compute().item()
+        pre = train_precision.compute().item()
+        re = train_recall.compute().item()
         print('Train')
-        print('Accuracy ' + str(train_accuracy.compute().item()))
-        print('Precision ' + str(train_precision.compute().item()))
-        print('Recall ' + str(train_recall.compute().item()))
+        print('Accuracy ' + str(acc))
+        print('Precision ' + str(pre))
+        print('Recall ' + str(re))
+        writer.add_scalar('Loss training', total_train_loss, epoch)
+        writer.add_scalar('Precision training',pre, epoch)
+        writer.add_scalar('Recall training', re, epoch)
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
@@ -133,9 +144,15 @@ def objective(trial):
 
             print('Val')
             print(total_loss)
-            print('Accuracy ' + str(val_accuracy.compute().item()))
-            print('Precision ' + str(val_precision.compute().item()))
-            print('Recall ' + str(val_recall.compute().item()))
+            val_acc = val_accuracy.compute().item()
+            val_pre = val_precision.compute().item()
+            val_re = val_recall.compute().item()
+            print('Accuracy ' + str(val_acc))
+            print('Precision ' + str(val_pre))
+            print('Recall ' + str(val_re))
+            writer.add_scalar('Loss val', total_loss, epoch)
+            writer.add_scalar('Precision val', pre, epoch)
+            writer.add_scalar('Recall val', re, epoch)
             val_accuracy.reset()
             val_precision.reset()
             val_recall.reset()
