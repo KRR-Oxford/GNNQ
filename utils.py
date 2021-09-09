@@ -31,30 +31,29 @@ def load_triples(file):
             triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
     return triples
 
-def corrupt_graph(relations, path_to_graph , paths_length, drop_prop):
+def corrupt_graph(relations, path_to_graph, path_to_corrupted_graph, max_paths_length, drop_prop):
     i = 0
     g = Graph()
     g.parse(path_to_graph, format="turtle")
     for r in relations:
         for s, p, o in g:
             if str(p) == r:
-                print(1)
-                if paths_length[i] == 1:
+                if max_paths_length[i] == 1:
                     g.add((s, URIRef(str(p) + str(1)), o))
                 else:
                     new_object = URIRef("http://dummyentities.com/" + str(uuid.uuid4()))
                     g.add((s, URIRef(str(p) + str(1)), new_object))
                     new_subject = new_object
-                    for j in range(2, paths_length[i]):
+                    for j in range(2, max_paths_length[i]):
                         new_object = URIRef("http://dummyentities.com/" + str(uuid.uuid4()))
                         g.add((new_subject, URIRef(str(p) + str(j)), new_object))
                         new_subject = new_object
-                    g.add((new_subject, URIRef(str(p) + str(paths_length[i])), o))
+                    g.add((new_subject, URIRef(str(p) + str(max_paths_length[i])), o))
                 drop = torch.bernoulli(p=drop_prop, input=torch.tensor([0])).item() == 1
                 if drop:
                     g.remove((s,p,o))
         i = i + 1
-    g.serialize(destination='dataset.nt',format='nt')
+    g.serialize(destination=path_to_corrupted_graph,format='nt')
 
 
 def load_answers(path_to_answers):
@@ -158,25 +157,21 @@ if __name__ == '__main__':
     parser.add_argument('--query',type=str,default='SELECT ?s ?r ?o WHERE { ?s ?r ?o }')
     args = parser.parse_args()
 
-
-    # query = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-    # subquery = 'SELECT distinct ?v0 ?v1 ?v2 ?v3 ?v4 ?v5 ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 }'
-    # subquery2 = 'SELECT distinct ?v4 ?v5 ?v6 ?v7 ?v8  WHERE {  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-    # subquery3 = 'SELECT distinct ?v6 ?v7 ?v8  WHERE {  ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-
-    query = 'SELECT distinct ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-    subquery1 = 'SELECT distinct ?v0 ?v1 ?v2 ?v3 ?v4  WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0 <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 }'
-    subquery2 = 'SELECT distinct ?v4 ?v5 ?v6 WHERE {  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 }'
-    subquery3 = 'SELECT distinct ?v6 ?v7 ?v8  WHERE {  ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
+    query_string = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
+    subquery1 = 'SELECT distinct ?v6 ?v7 ?v8  WHERE {  ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
+    subquery2 = 'SELECT distinct ?v0 ?v4 ?v5 ?v6 WHERE { ?v0 <http://purl.org/stuff/rev#hasReview> ?v4 . ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4 <http://purl.org/stuff/rev#reviewer> ?v6 }'
 
 
-    directory = 'dataset2_corrupted/'
-    save_query_answers(directory + 'graph.ttl' , query, directory + '2answers.pickle')
-    #corrupt_graph(['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating','http://purl.org/stuff/rev#hasReview', 'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor', 'http://schema.org/language'],  "dataset1/graph.ttl", [1, 2, 1, 2, 1, 1, 2, 2], 0)
-    save_query_answers(directory + 'graph.ttl', subquery1, directory + '2subquery_answers1.pickle')
-    save_query_answers(directory + 'graph.ttl', subquery2, directory + '2subquery_answers2.pickle')
-    save_query_answers(directory + 'graph.ttl', subquery3, directory + '2subquery_answers3.pickle')
-    # answers = load_answers('subquery_answers.pickle')
+    subqueries = [subquery1, subquery2]
+
+    directory = 'wsdbm-data-model-2/dataset2/'
+    query = 1
+    save_query_answers(directory + 'graph.ttl' , query_string, directory + 'query{}/answers.pickle'.format(query))
+    corrupt_graph(['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating','http://purl.org/stuff/rev#hasReview', 'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor', 'http://schema.org/language'], directory + "graph.ttl", directory + "corrupted_graph.ttl", [1, 2, 1, 2, 1, 1, 2, 2], 0)
+    i = 0
+    for subquery in subqueries:
+        save_query_answers(directory + 'corrupted_graph.ttl', subquery, directory + 'query{}/subquery_answers{}.pickle'.format(query,i))
+        i = i + 1
     print('Done')
 
 

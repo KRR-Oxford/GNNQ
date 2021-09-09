@@ -9,13 +9,14 @@ from optuna.trial import TrialState
 import pickle
 from torch.utils.tensorboard import SummaryWriter
 
-# ToDo: Add logic to corrupt datasets
+# ToDo: Trained model and logs should be saved in a directory with data and most important hyperparameters
 
 parser = argparse.ArgumentParser(description='Bla bla')
-parser.add_argument('--train_data', nargs='+', type=str, default=['dataset1_corrupted/'])
-parser.add_argument('--val_data', type=str, nargs='+', default=['dataset2_corrupted/'])
-parser.add_argument('--train_subqueries', nargs='+', type=str, default=['/2subquery_answers1.pickle','/2subquery_answers2.pickle','/2subquery_answers3.pickle'])
-parser.add_argument('--val_subqueries', nargs='+', type=str, default=['/2subquery_answers1.pickle','/2subquery_answers2.pickle','/2subquery_answers3.pickle'])
+parser.add_argument('--train_data', nargs='+', type=str, default=['wsdbm-data-model-2/dataset1/'])
+parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
+parser.add_argument('--query_directory', type=str, nargs='+', default='query1/')
+parser.add_argument('--train_subqueries', nargs='+', type=str, default=['/subquery_answers0.pickle','subquery_answers1.pickle'])
+parser.add_argument('--val_subqueries', nargs='+', type=str, default=['/subquery_answers0.pickle','subquery_answers1.pickle'])
 parser.add_argument('--pretrained_model', type=str, default='')
 parser.add_argument('--encoding', type=str, default='')
 parser.add_argument('--base_dim', type=int, default=16)
@@ -36,6 +37,7 @@ def objective(trial):
 
     train_data_directories = args.train_data
     val_data_directories = args.val_data
+    query_directory = args.query_directory
     subquery_answers_files = args.train_subqueries
     val_subquery_answers_files = args.val_subqueries
     base_dim = args.base_dim
@@ -63,12 +65,12 @@ def objective(trial):
     else:
         relation2id = None
     for directory in train_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + '2answers.pickle', [directory + file for file in subquery_answers_files], base_dim, relation2id)
+        data_object, relation2id = create_data_object(directory + 'corrupted_graph.ttl', directory + query_directory +'answers.pickle', [directory + query_directory + file for file in subquery_answers_files], base_dim, relation2id)
         train_data.append(data_object)
 
     for directory in val_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + '2answers.pickle',
-                           [directory + file for file in val_subquery_answers_files], base_dim, relation2id)
+        data_object, relation2id = create_data_object(directory + 'corrupted_graph.ttl', directory + query_directory + 'answers.pickle',
+                           [directory + query_directory + file for file in val_subquery_answers_files], base_dim, relation2id)
         val_data.append(data_object)
 
 
