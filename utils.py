@@ -5,6 +5,8 @@ from rdflib import Graph, URIRef
 import argparse
 import pickle
 import uuid
+from rdflib.plugins.sparql import prepareQuery
+import anytree
 
 def save_query_answers(path_to_graph, query_string, path_to_output):
     g = Graph()
