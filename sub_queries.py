@@ -1,8 +1,7 @@
 from rdflib.plugins.sparql import prepareQuery
 from rdflib import Graph, Variable, URIRef
-from anytree import Node, NodeMixin, RenderTree, PreOrderIter
+from anytree import Node, RenderTree, PreOrderIter
 import math
-import copy
 
 class CustomNode(Node):
     def __init__(self, name, is_rel=False, is_inv=False, parent=None, children=None):
@@ -41,7 +40,7 @@ def max_depth(node):
             deep = leaf
     return deep
 
-def algo(root, subquery_depth):
+def create_subquery_trees(root, subquery_depth):
     l = max_depth(root)
     if math.floor(l.depth/2) < 2 or subquery_depth < 2:
         return []
@@ -62,11 +61,11 @@ def algo(root, subquery_depth):
                     child.parent = None
         l = p
         c = c + 1
-    return algo(root, subquery_depth) + [cp_p]
+    return create_subquery_trees(root, subquery_depth) + [cp_p]
 
-def create_queries(subs):
+def create_subqueries(trees):
     queries = []
-    for sub in subs:
+    for sub in trees:
         triples = []
         vars = []
         for node in PreOrderIter(sub):
@@ -76,7 +75,7 @@ def create_queries(subs):
                 triples.append((Variable(node.parent.name),URIRef(node.name),Variable(node.children[0].name)))
             else:
                 vars.append(Variable(node.name))
-        q = prepareQuery('SELECT distinct ?v0 WHERE { ?v0 ?v1 ?v2}')
+        q = prepareQuery('SELECT distinct ?v0 WHERE { ?v0 ?v1 ?v2}') #dummy query to create a query object
         q.algebra['PV'] = vars
         q.algebra['_vars'] = set(vars)
         q.algebra['p']['PV'] = vars
@@ -88,20 +87,22 @@ def create_queries(subs):
         queries.append(q)
     return queries
 
-g = Graph()
-g.parse('./GNNQ/wsdbm-data-model-2/dataset1/graph.ttl', format="turtle")
-# query ='SELECT distinct ?v4 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-query = 'SELECT distinct ?v8 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .}'
-root = create_tree(query)
-# # for pre, fill, node in RenderTree(root):
-# #     print("%s%s" % (pre, node.name))
-subs = algo(root,2)
-for sub in subs:
-    for pre, fill, node in RenderTree(sub):
-        print("%s%s" % (pre, node.name))
-queries = create_queries(subs)
-for query in queries:
-    qres = g.query(query)
-    print(len(qres))
+
+if __name__ == '__main__':
+    g = Graph()
+    g.parse('./GNNQ/wsdbm-data-model-2/dataset1/graph.ttl', format="turtle")
+    # query ='SELECT distinct ?v4 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
+    query = 'SELECT distinct ?v8 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .}'
+    root = create_tree(query)
+    # # for pre, fill, node in RenderTree(root):
+    # #     print("%s%s" % (pre, node.name))
+    subs = create_subquery_trees(root, 2)
+    for sub in subs:
+        for pre, fill, node in RenderTree(sub):
+            print("%s%s" % (pre, node.name))
+    queries = create_subqueries(subs)
+    for query in queries:
+        qres = g.query(query)
+        print(len(qres))
 
 

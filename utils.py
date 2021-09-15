@@ -1,27 +1,12 @@
 import re
 import torch
-import numpy as np
-from rdflib import Graph, URIRef
-import argparse
 import pickle
 import uuid
-from rdflib.plugins.sparql import prepareQuery
-import anytree
+import argparse
+from sub_queries import create_tree, create_subquery_trees, create_subqueries
+from rdflib import Graph, URIRef
 
-def save_query_answers(path_to_graph, query_string, path_to_output):
-    g = Graph()
-    g.parse(path_to_graph, format="turtle")
 
-    qres = g.query(query_string)
-
-    answers = []
-    for row in qres:
-        answers.append([str(entity).strip() for entity in row])
-
-    print(len(answers))
-
-    with open(path_to_output, 'wb') as f:
-        pickle.dump(answers, f)
 
 def load_triples(file):
     triples = []
@@ -57,11 +42,6 @@ def corrupt_graph(relations, path_to_graph, path_to_corrupted_graph, max_paths_l
         i = i + 1
     g.serialize(destination=path_to_corrupted_graph,format='nt')
 
-
-def load_answers(path_to_answers):
-    with open(path_to_answers, 'rb') as f:
-        answers = pickle.load(f)
-    return answers
 
 def create_triples_with_ids(triples, relation2id=None):
     entity2id = {}
@@ -106,6 +86,50 @@ def create_index_matrices(triples_with_ids):
     num_edge_types_by_shape = {1: len(torch.unique(edge_type))}
     return index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape
 
+def save_query_answers(path_to_graph, query_string, path_to_output):
+    g = Graph()
+    g.parse(path_to_graph, format="turtle")
+
+    qres = g.query(query_string)
+
+    answers = []
+    for row in qres:
+        answers.append([str(entity).strip() for entity in row])
+
+    print(len(answers))
+
+    with open(path_to_output, 'wb') as f:
+        pickle.dump(answers, f)
+
+def load_answers(path_to_answers):
+    with open(path_to_answers, 'rb') as f:
+        answers = pickle.load(f)
+    return answers
+
+def compute_query_answers(path_to_graph, query_string):
+    g = Graph()
+    g.parse(path_to_graph, format="turtle")
+    qres = g.query(query_string)
+    answers = []
+    for row in qres:
+        answers.append([str(entity).strip() for entity in row])
+    return answers
+
+def create_subquery_answers(path_to_corrupted_graph, query_string, subquery_depth):
+    g = Graph()
+    g.parse(path_to_corrupted_graph, format="turtle")
+    root = create_tree(query_string)
+    trees = create_subquery_trees(root, subquery_depth)
+    subqueries = create_subqueries(trees)
+    subquery_answers = []
+    for subquery in subqueries:
+        qres = g.query(subquery)
+        answers = []
+        for row in qres:
+            answers.append([str(entity).strip() for entity in row])
+        subquery_answers.append(answers)
+    return subquery_answers
+
 def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_shape, num_edge_types_by_shape):
     if len(tuples[0])-1 not in index_matrices_by_shape:
         id = 0
@@ -136,18 +160,18 @@ def create_y_vector(answers, num_nodes):
     # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
-def create_data_object(path_to_graph, path_to_answers, paths_to_subquery_answers, base_dim, relation2id=None):
-    triples = load_triples(path_to_graph)
+def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, base_dim, subquery_depth, relation2id=None):
+    triples = load_triples(path_to_corrupted_graph)
     triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples, relation2id)
     num_nodes = len(entity2id)
-    path_to_answers = load_answers(path_to_answers)
-    path_to_answers = [entity2id[entity[0]] for entity in path_to_answers]
     x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, base_dim - 1)), dim=1)
-    y = create_y_vector(path_to_answers, num_nodes)
+    answers = compute_query_answers(path_to_graph, query_string)
+    answers = [entity2id[entity[0]] for entity in answers]
+    y = create_y_vector(answers, num_nodes)
     hyperedge_indices, hyperedge_types, num_edge_types_by_shape = create_index_matrices(triples)
-    for file in paths_to_subquery_answers:
-        subquery_answers = load_answers(file)
-        subquery_answers = [[entity2id[entity] for entity in answer] for answer in subquery_answers]
+    subquery_answers = create_subquery_answers(path_to_corrupted_graph, query_string, subquery_depth)
+    for answer_set in subquery_answers:
+        subquery_answers = [[entity2id[entity] for entity in answer] for answer in answer_set]
         hyperedge_indices, hyperedge_types, num_edge_types_by_shape = add_tuples_to_index_matrices(
             subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
     return {'hyperedge_indices':hyperedge_indices, 'hyperedge_types':hyperedge_types, 'num_edge_types_by_shape':num_edge_types_by_shape,'x':x,'y':y}, relation2id

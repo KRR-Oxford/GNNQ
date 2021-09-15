@@ -1,6 +1,6 @@
 import torch
 from model import HGNN
-from utils import load_triples, load_answers, create_triples_with_ids, create_y_vector, create_index_matrices, add_tuples_to_index_matrices, create_data_object
+from utils import create_data_object
 import numpy as np
 import argparse
 import torchmetrics
@@ -14,9 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 parser = argparse.ArgumentParser(description='Bla bla')
 parser.add_argument('--train_data', nargs='+', type=str, default=['wsdbm-data-model-2/dataset1/'])
 parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
-parser.add_argument('--query_directory', type=str, nargs='+', default='query1/')
-parser.add_argument('--train_subqueries', nargs='+', type=str, default=['/subquery_answers0.pickle','subquery_answers1.pickle'])
-parser.add_argument('--val_subqueries', nargs='+', type=str, default=['/subquery_answers0.pickle','subquery_answers1.pickle'])
+parser.add_argument('--query_string', type=str, nargs='+', default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
 parser.add_argument('--pretrained_model', type=str, default='')
 parser.add_argument('--encoding', type=str, default='')
 parser.add_argument('--base_dim', type=int, default=16)
@@ -37,9 +35,7 @@ def objective(trial):
 
     train_data_directories = args.train_data
     val_data_directories = args.val_data
-    query_directory = args.query_directory
-    subquery_answers_files = args.train_subqueries
-    val_subquery_answers_files = args.val_subqueries
+    query_string = args.query_string
     base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
@@ -65,12 +61,11 @@ def objective(trial):
     else:
         relation2id = None
     for directory in train_data_directories:
-        data_object, relation2id = create_data_object(directory + 'corrupted_graph.ttl', directory + query_directory +'answers.pickle', [directory + query_directory + file for file in subquery_answers_files], base_dim, relation2id)
+        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'corrupted_graph.ttl' , query_string, base_dim, 2, relation2id)
         train_data.append(data_object)
 
     for directory in val_data_directories:
-        data_object, relation2id = create_data_object(directory + 'corrupted_graph.ttl', directory + query_directory + 'answers.pickle',
-                           [directory + query_directory + file for file in val_subquery_answers_files], base_dim, relation2id)
+        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'corrupted_graph.ttl', query_string, base_dim, 2, relation2id)
         val_data.append(data_object)
 
 
