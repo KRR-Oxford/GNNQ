@@ -63,8 +63,8 @@ def create_subquery_trees(root, subquery_depth):
                     child.parent = None
         l = p
         c = c + 1
-        for pre, fill, node in RenderTree(cp_p):
-            print("%s%s" % (pre, node.name))
+    for pre, fill, node in RenderTree(cp_p):
+        print("%s%s" % (pre, node.name))
     return create_subquery_trees(root, subquery_depth) + [cp_p]
 
 def create_subqueries(trees):
@@ -98,12 +98,7 @@ if __name__ == '__main__':
     # query ='SELECT distinct ?v4 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     query = 'SELECT distinct ?v8 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .}'
     root = create_tree(query)
-    # # for pre, fill, node in RenderTree(root):
-    # #     print("%s%s" % (pre, node.name))
     subs = create_subquery_trees(root, 2)
-    for sub in subs:
-        for pre, fill, node in RenderTree(sub):
-            print("%s%s" % (pre, node.name))
     queries = create_subqueries(subs)
     for query in queries:
         qres = g.query(query)
