@@ -12,9 +12,9 @@ from torch.utils.tensorboard import SummaryWriter
 # ToDo: Trained model and logs should be saved in a directory with data and most important hyperparameters
 
 parser = argparse.ArgumentParser(description='Bla bla')
-parser.add_argument('--train_data', nargs='+', type=str, default=['wsdbm-data-model-2/dataset1/'])
+parser.add_argument('--train_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset1/'])
 parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
-parser.add_argument('--query_string', type=str, nargs='+', default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
+parser.add_argument('--query_string', type=str, default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
 parser.add_argument('--pretrained_model', type=str, default='')
 parser.add_argument('--encoding', type=str, default='')
 parser.add_argument('--base_dim', type=int, default=16)
