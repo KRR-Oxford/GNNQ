@@ -41,6 +41,8 @@ def max_depth(node):
     return deep
 
 def create_subquery_trees(root, subquery_depth):
+    for pre, fill, node in RenderTree(root):
+        print("%s%s" % (pre, node.name))
     l = max_depth(root)
     if math.floor(l.depth/2) < 2 or subquery_depth < 2:
         return []
@@ -61,6 +63,8 @@ def create_subquery_trees(root, subquery_depth):
                     child.parent = None
         l = p
         c = c + 1
+        for pre, fill, node in RenderTree(cp_p):
+            print("%s%s" % (pre, node.name))
     return create_subquery_trees(root, subquery_depth) + [cp_p]
 
 def create_subqueries(trees):
