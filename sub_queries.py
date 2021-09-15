@@ -31,6 +31,8 @@ def create_tree(query_string):
             node = children.pop(0)
         else:
             node = None
+    for pre, fill, node in RenderTree(root):
+        print("%s%s" % (pre, node.name))
     return root
 
 def max_depth(node):
@@ -41,8 +43,6 @@ def max_depth(node):
     return deep
 
 def create_subquery_trees(root, subquery_depth):
-    for pre, fill, node in RenderTree(root):
-        print("%s%s" % (pre, node.name))
     l = max_depth(root)
     if math.floor(l.depth/2) < 2 or subquery_depth < 2:
         return []
@@ -93,15 +93,15 @@ def create_subqueries(trees):
 
 
 if __name__ == '__main__':
-    g = Graph()
-    g.parse('./GNNQ/wsdbm-data-model-2/dataset1/graph.ttl', format="turtle")
-    # query ='SELECT distinct ?v4 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-    query = 'SELECT distinct ?v8 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .}'
+    # g = Graph()
+    # g.parse('./GNNQ/wsdbm-data-model-2/dataset1/graph.ttl', format="turtle")
+    query ='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
+    # query = 'SELECT distinct ?v8 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .}'
     root = create_tree(query)
     subs = create_subquery_trees(root, 2)
     queries = create_subqueries(subs)
-    for query in queries:
-        qres = g.query(query)
-        print(len(qres))
+    # for query in queries:
+    #     qres = g.query(query)
+    #     print(len(qres))
 
 
