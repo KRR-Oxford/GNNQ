@@ -160,7 +160,7 @@ def create_y_vector(answers, num_nodes):
     # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
-def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, base_dim, subquery_depth, relation2id=None):
+def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, base_dim, aug, subquery_depth, relation2id=None):
     triples = load_triples(path_to_corrupted_graph)
     triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples, relation2id)
     num_nodes = len(entity2id)
@@ -169,11 +169,12 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, bas
     answers = [entity2id[entity[0]] for entity in answers]
     y = create_y_vector(answers, num_nodes)
     hyperedge_indices, hyperedge_types, num_edge_types_by_shape = create_index_matrices(triples)
-    subquery_answers = create_subquery_answers(path_to_corrupted_graph, query_string, subquery_depth)
-    for answer_set in subquery_answers:
-        subquery_answers = [[entity2id[entity] for entity in answer] for answer in answer_set]
-        hyperedge_indices, hyperedge_types, num_edge_types_by_shape = add_tuples_to_index_matrices(
-            subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
+    if aug:
+        subquery_answers = create_subquery_answers(path_to_corrupted_graph, query_string, subquery_depth)
+        for answer_set in subquery_answers:
+            subquery_answers = [[entity2id[entity] for entity in answer] for answer in answer_set]
+            hyperedge_indices, hyperedge_types, num_edge_types_by_shape = add_tuples_to_index_matrices(
+                subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
     return {'hyperedge_indices':hyperedge_indices, 'hyperedge_types':hyperedge_types, 'num_edge_types_by_shape':num_edge_types_by_shape,'x':x,'y':y}, relation2id
 
 if __name__ == '__main__':
@@ -192,7 +193,7 @@ if __name__ == '__main__':
 
     directory = 'wsdbm-data-model-2/dataset2/'
     query = 1
-    save_query_answers(directory + 'graph.ttl' , query_string, directory + 'query{}/answers.pickle'.format(query))
+    save_query_answers(directory + 'graph.nt' , query_string, directory + 'query{}/answers.pickle'.format(query))
     corrupt_graph(['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating','http://purl.org/stuff/rev#hasReview', 'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor', 'http://schema.org/language'], directory + "graph.ttl", directory + "corrupted_graph.ttl", [1, 2, 1, 2, 1, 1, 2, 2], 0)
     i = 0
     for subquery in subqueries:

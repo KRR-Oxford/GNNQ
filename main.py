@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser(description='Bla bla')
 parser.add_argument('--train_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset1/'])
 parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
 parser.add_argument('--query_string', type=str, default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
+parser.add_argument('--aug', type=bool, default=True)
 parser.add_argument('--pretrained_model', type=str, default='')
 parser.add_argument('--encoding', type=str, default='')
 parser.add_argument('--base_dim', type=int, default=16)
@@ -44,6 +45,7 @@ def objective(trial):
     lr_scheduler_step_size = args.lr_scheduler_step_size
     negative_slope = args.negative_slope
     positive_sample_weight = args.positive_sample_weight
+    aug = args.aug
 
     # base_dim = trial.suggest_int('base_dim', 8, 32)
     # num_layers = trial.suggest_int('num_layers', 1, 4)
@@ -61,11 +63,11 @@ def objective(trial):
     else:
         relation2id = None
     for directory in train_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt' , query_string, base_dim, 2, relation2id)
+        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt' , query_string, base_dim, aug, 2, relation2id)
         train_data.append(data_object)
 
     for directory in val_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt', query_string, base_dim, 2, relation2id)
+        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt', query_string, base_dim, aug, 2, relation2id)
         val_data.append(data_object)
 
 
