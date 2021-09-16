@@ -61,11 +61,11 @@ def objective(trial):
     else:
         relation2id = None
     for directory in train_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'corrupted_graph.ttl' , query_string, base_dim, 2, relation2id)
+        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt' , query_string, base_dim, 2, relation2id)
         train_data.append(data_object)
 
     for directory in val_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.ttl', directory + 'corrupted_graph.ttl', query_string, base_dim, 2, relation2id)
+        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt', query_string, base_dim, 2, relation2id)
         val_data.append(data_object)
 
 

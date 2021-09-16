@@ -108,7 +108,7 @@ def load_answers(path_to_answers):
 
 def compute_query_answers(path_to_graph, query_string):
     g = Graph()
-    g.parse(path_to_graph, format="turtle")
+    g.parse(path_to_graph, format="nt")
     qres = g.query(query_string)
     answers = []
     for row in qres:
@@ -117,7 +117,7 @@ def compute_query_answers(path_to_graph, query_string):
 
 def create_subquery_answers(path_to_corrupted_graph, query_string, subquery_depth):
     g = Graph()
-    g.parse(path_to_corrupted_graph, format="turtle")
+    g.parse(path_to_corrupted_graph, format="nt")
     root = create_tree(query_string)
     trees = create_subquery_trees(root, subquery_depth)
     subqueries = create_subqueries(trees)
