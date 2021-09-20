@@ -28,7 +28,6 @@ parser.add_argument('--negative_slope', type=int, default=0.1)
 parser.add_argument('--positive_sample_weight', type=int, default=1)
 args = parser.parse_args()
 
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def objective(trial):
@@ -98,6 +97,7 @@ def objective(trial):
         for data_object in train_data:
             pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'], logits=True, negative_slope=negative_slope).flatten()
             # Weigh false positive samples from the previous epoch higher to address bad recall
+            # We could also just use a small fraction of negative samples
             sample_weights_train = positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, data_object['y'],weight=sample_weights_train)
             loss.backward()
