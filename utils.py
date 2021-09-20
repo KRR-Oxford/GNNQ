@@ -3,10 +3,8 @@ import torch
 import pickle
 import uuid
 import argparse
-from sub_queries import create_tree, create_subquery_trees, create_subqueries
+from sub_queries import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
 from rdflib import Graph, URIRef
-
-
 
 def load_triples(file):
     triples = []
@@ -119,7 +117,8 @@ def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_dep
     g = Graph()
     g.parse(path_to_corrupted_graph, format="nt")
     root = create_tree(query_string)
-    trees = create_subquery_trees(root, subquery_depth)
+    # trees = create_subquery_trees(root, subquery_depth)
+    trees = create_all_connceted_trees(root)
     subqueries = create_subqueries(trees)
     subquery_answers = []
     for subquery in subqueries:
