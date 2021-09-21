@@ -71,8 +71,7 @@ def compute_subquery_nodes(node):
         h = flatten2list([i])
         h = filter(lambda el: el != "_", h)
         res.append(list(h))
-    res = filter(lambda el: len(el) > 2 and len(el) < 6, res)
-    return list(res)
+    return res
 
 def create_subtree_from_nodeset(root, nodes):
     new_root = None
@@ -84,8 +83,6 @@ def create_subtree_from_nodeset(root, nodes):
                 rel = node.parent
                 h = CustomNode(rel.name,  parent=find_by_attr(new_root, rel.parent.name), is_rel=True, is_inv=rel.is_inv)
                 CustomNode(node.name, parent=h)
-    for pre, fill, node in RenderTree(new_root):
-        print("%s%s" % (pre, node.name))
     return new_root
 
 
@@ -93,7 +90,11 @@ def create_all_connceted_trees(root):
     subquery_nodes = compute_subquery_nodes(root)
     trees = []
     for node_set in subquery_nodes:
-        trees.append(create_subtree_from_nodeset(root, node_set))
+        tree = create_subtree_from_nodeset(root, node_set)
+        if tree.height > 2:
+            for pre, fill, node in RenderTree(tree):
+                print("%s%s" % (pre, node.name))
+            trees.append(tree)
     return trees
 
 # My approach
@@ -158,16 +159,13 @@ if __name__ == '__main__':
     g = Graph()
     start = time.time()
     g.parse('./GNNQ/wsdbm-data-model-2/dummy/corrupted_graph.nt', format='nt')
-    # end = time.time()
-    # print("Parsing took {} seconds".format(end - start))
+    end = time.time()
+    print("Parsing took {} seconds".format(end - start))
     query ='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     # query = 'SELECT distinct ?v8 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .}'
     root = create_tree(query)
     # trees = create_subquery_trees(root,2)
     trees = create_all_connceted_trees(root)
-    for tree in trees:
-        for pre, fill, node in RenderTree(tree):
-            print("%s%s" % (pre, node.name))
     queries = create_subqueries(trees)
     for query in queries:
         qres = g.query(query)
