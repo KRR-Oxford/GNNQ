@@ -84,6 +84,8 @@ def create_subtree_from_nodeset(root, nodes):
                 rel = node.parent
                 h = CustomNode(rel.name,  parent=find_by_attr(new_root, rel.parent.name), is_rel=True, is_inv=rel.is_inv)
                 CustomNode(node.name, parent=h)
+    for pre, fill, node in RenderTree(new_root):
+        print("%s%s" % (pre, node.name))
     return new_root
 
 
