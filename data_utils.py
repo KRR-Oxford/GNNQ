@@ -1,9 +1,6 @@
 import re
 import torch
-import pickle
-import uuid
-import argparse
-from sub_queries import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
+from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
 from rdflib import Graph, URIRef
 
 def load_triples(file):
@@ -15,30 +12,6 @@ def load_triples(file):
         if line:
             triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
     return triples
-
-def corrupt_graph(relations, path_to_graph, path_to_corrupted_graph, max_paths_length, drop_prop):
-    i = 0
-    g = Graph()
-    g.parse(path_to_graph, format="nt")
-    for r in relations:
-        for s, p, o in g:
-            if str(p) == r:
-                if max_paths_length[i] == 1:
-                    g.add((s, URIRef(str(p) + str(1)), o))
-                else:
-                    new_object = URIRef("http://dummyentities.com/" + str(uuid.uuid4()))
-                    g.add((s, URIRef(str(p) + str(1)), new_object))
-                    new_subject = new_object
-                    for j in range(2, max_paths_length[i]):
-                        new_object = URIRef("http://dummyentities.com/" + str(uuid.uuid4()))
-                        g.add((new_subject, URIRef(str(p) + str(j)), new_object))
-                        new_subject = new_object
-                    g.add((new_subject, URIRef(str(p) + str(max_paths_length[i])), o))
-                drop = torch.bernoulli(p=drop_prop, input=torch.tensor([0])).item() == 1
-                if drop:
-                    g.remove((s,p,o))
-        i = i + 1
-    g.serialize(destination=path_to_corrupted_graph,format='nt')
 
 
 def create_triples_with_ids(triples, relation2id=None):
@@ -84,25 +57,6 @@ def create_index_matrices(triples_with_ids):
     num_edge_types_by_shape = {1: len(torch.unique(edge_type))}
     return index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape
 
-def save_query_answers(path_to_graph, query_string, path_to_output):
-    g = Graph()
-    g.parse(path_to_graph, format="turtle")
-
-    qres = g.query(query_string)
-
-    answers = []
-    for row in qres:
-        answers.append([str(entity).strip() for entity in row])
-
-    print(len(answers))
-
-    with open(path_to_output, 'wb') as f:
-        pickle.dump(answers, f)
-
-def load_answers(path_to_answers):
-    with open(path_to_answers, 'rb') as f:
-        answers = pickle.load(f)
-    return answers
 
 def compute_query_answers(path_to_graph, query_string):
     g = Graph()
@@ -176,29 +130,6 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, bas
                 subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
     return {'hyperedge_indices':hyperedge_indices, 'hyperedge_types':hyperedge_types, 'num_edge_types_by_shape':num_edge_types_by_shape,'x':x,'y':y}, relation2id
 
-if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Bla bla')
-    # parser.add_argument('--train_data', type=str, default='train')
-    # parser.add_argument('--val_data', type=str, default='val')
-    # parser.add_argument('--query',type=str,default='SELECT ?s ?r ?o WHERE { ?s ?r ?o }')
-    # args = parser.parse_args()
-    #
-    # query_string = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-    # subquery1 = 'SELECT distinct ?v6 ?v7 ?v8  WHERE {  ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-    # subquery2 = 'SELECT distinct ?v0 ?v4 ?v5 ?v6 WHERE { ?v0 <http://purl.org/stuff/rev#hasReview> ?v4 . ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4 <http://purl.org/stuff/rev#reviewer> ?v6 }'
-    #
-    #
-    # subqueries = [subquery1, subquery2]
-    #
-    directory = 'wsdbm-data-model-2/dummy/'
-    # query = 1
-    # save_query_answers(directory + 'graph.nt' , query_string, directory + 'query{}/answers.pickle'.format(query))
-    corrupt_graph(['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating','http://purl.org/stuff/rev#hasReview', 'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor', 'http://schema.org/language'], directory + "graph.nt", directory + "corrupted_graph.nt", [1, 2, 1, 2, 1, 1, 2, 2], 0.05)
-    # i = 0
-    # for subquery in subqueries:
-    #     save_query_answers(directory + 'corrupted_graph.ttl', subquery, directory + 'query{}/subquery_answers{}.pickle'.format(query,i))
-    #     i = i + 1
-    print('Done')
 
 
 
