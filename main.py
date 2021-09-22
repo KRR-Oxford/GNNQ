@@ -1,6 +1,6 @@
 import torch
 from model import HGNN
-from utils import create_data_object
+from data_utils import create_data_object
 import numpy as np
 import argparse
 import torchmetrics

@@ -83,6 +83,7 @@ def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_dep
         subquery_answers.append(answers)
     return subquery_answers
 
+# Todo: Consolidate this function in the create index matrices method
 def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_shape, num_edge_types_by_shape):
     if len(tuples[0])-1 not in index_matrices_by_shape:
         id = 0
