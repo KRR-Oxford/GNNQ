@@ -7,7 +7,7 @@ import torchmetrics
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('--model', type=str, default='models')
+parser.add_argument('--model', type=str, default='models/trial0.pt')
 parser.add_argument('--test_data', type=str, default='wsdbm-data-model-2/dataset1')
 parser.add_argument('--query_string', type=str, default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
 parser.add_argument('--base_dim', type=int, default=16)
@@ -15,8 +15,8 @@ parser.add_argument('--num_layers', type=int, default=4)
 parser.add_argument('--negative_slope', type=int, default=0.1)
 args = parser.parse_args()
 
-model_direct = args.model
-test_data_directories = args.test_data
+model_dir = args.model
+test_data_dirs = args.test_data
 query_string = args.query_string
 base_dim = args.base_dim
 num_layers = args.num_layers
@@ -24,7 +24,7 @@ negative_slope = args.negative_slope
 aug = args.aug
 
 test_data = []
-for directory in test_data_directories:
+for directory in test_data_dirs:
     data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt', query_string, base_dim, aug, 2, relation2id)
     test_data.append(data_object)
 
@@ -34,7 +34,7 @@ help = model.parameters()
 for param in model.parameters():
     print(type(param.data), param.size())
 
-model.load_state_dict(torch.load('./trial0.pt'))
+model.load_state_dict(model_dir)
 test_accuracy = torchmetrics.Accuracy(threshold=0.5)
 test_precision = torchmetrics.Precision(threshold=0.5)
 test_recall = torchmetrics.Recall(threshold=0.5)
