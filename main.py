@@ -198,7 +198,7 @@ if __name__ == '__main__':
     parser.add_argument('--negative_slope', type=int, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=1)
     parser.add_argument('--log_dir', type=str, default='runs/')
-    parser.add_argument('--hyperparam_tune', type=bool, default=True)
+    parser.add_argument('--hyperparam_tune', action='store_false', default=False)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
