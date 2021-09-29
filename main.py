@@ -38,6 +38,7 @@ def train(args, trial=None):
     learning_rate = args.lr
     lr_scheduler_step_size = args.lr_scheduler_step_size
     negative_slope = args.negative_slope
+    positive_sample_weight = args.positive_sample_weight
 
     if trial:
         base_dim = trial.suggest_int('base_dim', 8, 32)
@@ -135,7 +136,7 @@ def train(args, trial=None):
                 pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                              negative_slope=negative_slope).flatten()
                 # Weigh false positive samples from the previous epoch higher to address bad recall
-                sample_weights_val = positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
+                sample_weights_val = args.positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
                 total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'],
                                                                                    weight=sample_weights_val)
                 val_accuracy(pred, data_object['y'].int())
