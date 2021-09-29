@@ -13,11 +13,12 @@ import pickle
 from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser(description='Bla bla')
-parser.add_argument('--query_string', type=str, default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
+parser.add_argument('--query_string', type=str,
+                    default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
 parser.add_argument('--train_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset1/'])
 parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
-parser.add_argument('--hyperparam_tune', type=bool, default=False)
 parser.add_argument('--aug', type=bool, default=True)
+parser.add_argument('--max_num_subquery_vars', type=int, default=5)
 parser.add_argument('--pretrained_model', type=str, default='')
 parser.add_argument('--relations2id', type=str, default='')
 parser.add_argument('--base_dim', type=int, default=16)
@@ -29,6 +30,7 @@ parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
 parser.add_argument('--negative_slope', type=int, default=0.1)
 parser.add_argument('--positive_sample_weight', type=int, default=1)
 parser.add_argument('--log_dir', type=str, default='runs/')
+parser.add_argument('--hyperparam_tune', type=bool, default=False)
 args = parser.parse_args()
 
 now = datetime.now()
@@ -40,6 +42,7 @@ if not os.path.exists(log_directory):
     os.makedirs(log_directory)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def train(trial=None):
     writer = SummaryWriter(log_directory)
@@ -56,6 +59,7 @@ def train(trial=None):
     negative_slope = args.negative_slope
     positive_sample_weight = args.positive_sample_weight
     aug = args.aug
+    max_num_subquery_vars = args.max_num_subquery_vars
 
     if trial:
         base_dim = trial.suggest_int('base_dim', 8, 32)
@@ -78,12 +82,12 @@ def train(trial=None):
         relation2id = None
     for directory in train_data_directories:
         data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
-                                                      query_string, base_dim, aug, 2, relation2id)
+                                                      query_string, base_dim, aug, max_num_subquery_vars, relation2id)
         train_data.append(data_object)
 
     for directory in val_data_directories:
         data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
-                                                      query_string, base_dim, aug, 2, relation2id)
+                                                      query_string, base_dim, aug, max_num_subquery_vars, relation2id)
         val_data.append(data_object)
 
     model = HGNN(base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
@@ -98,6 +102,7 @@ def train(trial=None):
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_scheduler_step_size, gamma=0.5)
 
+    # Needs to be defined as module in the HGNN class to automatically move to GPU
     train_accuracy = torchmetrics.Accuracy(threshold=0.5)
     train_precision = torchmetrics.Precision(threshold=0.5)
     train_recall = torchmetrics.Recall(threshold=0.5)
@@ -145,7 +150,7 @@ def train(trial=None):
         train_precision.reset()
         train_recall.reset()
 
-        if (epoch % val_epochs == 0) & (epoch != 0):
+        if (epoch != 0) and (epoch % val_epochs == 0):
             total_loss = 0
             for data_object in val_data:
                 pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
@@ -185,15 +190,17 @@ def train(trial=None):
         pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
 
+
 def objective(trial):
     loss = train(trial)
     return loss
+
 
 if not args.hyperparam_tune:
     train()
 else:
     study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
-            n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
+        n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
     study.optimize(objective, n_trials=1)
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
@@ -212,4 +219,3 @@ else:
     print("  Params: ")
     for key, value in trial.params.items():
         print("    {}: {}".format(key, value))
-
