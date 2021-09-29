@@ -3,10 +3,11 @@ import torch
 from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
 from rdflib import Graph, URIRef
 
+
 def load_triples(file):
     triples = []
     with open(file) as f:
-        file_data = [re.search('(.+?)\s+(.+?)\s+(.+)\s*\.',line) for line in f.read().split('\n')[:-1]]
+        file_data = [re.search('(.+?)\s+(.+?)\s+(.+)\s*\.', line) for line in f.read().split('\n')[:-1]]
     # Save the triplets corresponding to only the known relations
     for line in file_data:
         if line:
@@ -46,12 +47,13 @@ def create_triples_with_ids(triples, relation2id=None):
 
     return id_triples, entity2id, relation2id, id2entity, id2relation
 
+
 def create_index_matrices(triples_with_ids):
     edges = torch.tensor(triples_with_ids).t()[[0, 2]]
-    edges = torch.cat((edges, edges[[1,0]]), dim=1)
+    edges = torch.cat((edges, edges[[1, 0]]), dim=1)
     edge_type = torch.tensor(triples_with_ids).t()[1]
     # +1 required because edge ids start with 0
-    edge_type = torch.cat((edge_type, edge_type + torch.max(edge_type)  + 1),dim=0)
+    edge_type = torch.cat((edge_type, edge_type + torch.max(edge_type) + 1), dim=0)
     index_matrices_by_shape = {1: edges}
     edge_type_by_shape = {1: edge_type}
     num_edge_types_by_shape = {1: len(torch.unique(edge_type))}
@@ -66,6 +68,7 @@ def compute_query_answers(path_to_graph, query_string):
     for row in qres:
         answers.append([str(entity).strip() for entity in row])
     return answers
+
 
 def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_depth):
     g = Graph()
@@ -83,9 +86,10 @@ def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_dep
         subquery_answers.append(answers)
     return subquery_answers
 
+
 # Todo: Consolidate this function in the create index matrices method
-def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_shape, num_edge_types_by_shape):
-    if len(tuples[0])-1 not in index_matrices_by_shape:
+def add_tuples_to_index_matrices(tuples, index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape):
+    if len(tuples[0]) - 1 not in index_matrices_by_shape:
         id = 0
     else:
         id = torch.max(edge_type_by_shape[len(tuples[0]) - 1]) + 1
@@ -94,17 +98,18 @@ def add_tuples_to_index_matrices(tuples, index_matrices_by_shape , edge_type_by_
         # If there exists no edge of this shape
         if len(tuple) - 1 not in index_matrices_by_shape:
             index_matrices_by_shape[len(tuple) - 1] = torch.stack((tuple[1:], tuple[0].repeat(len(tuple) - 1)),
-                                                                   dim=0)
+                                                                  dim=0)
             edge_type_by_shape[len(tuple) - 1] = torch.tensor([id])
         else:
             index_matrices_by_shape[len(tuple) - 1] = torch.cat((index_matrices_by_shape[len(tuple) - 1], torch.stack(
                 (tuple[1:], tuple[0].repeat(len(tuple) - 1)), dim=0)), dim=1)
             edge_type_by_shape[len(tuple) - 1] = torch.cat((edge_type_by_shape[len(tuple) - 1], torch.tensor([id])),
-                                                            dim=0)
+                                                           dim=0)
     for shape in edge_type_by_shape:
         if shape != 1:
             num_edge_types_by_shape[shape] = len(torch.unique(edge_type_by_shape[shape]))
     return index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape
+
 
 def create_y_vector(answers, num_nodes):
     # K - hot vector indicating all answers
@@ -114,7 +119,9 @@ def create_y_vector(answers, num_nodes):
     # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
-def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, base_dim, aug, subquery_depth, relation2id=None):
+
+def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, base_dim, aug, subquery_depth,
+                       relation2id=None):
     triples = load_triples(path_to_corrupted_graph)
     triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples, relation2id)
     num_nodes = len(entity2id)
@@ -129,19 +136,5 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, bas
             subquery_answers = [[entity2id[entity] for entity in answer] for answer in answer_set]
             hyperedge_indices, hyperedge_types, num_edge_types_by_shape = add_tuples_to_index_matrices(
                 subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
-    return {'hyperedge_indices':hyperedge_indices, 'hyperedge_types':hyperedge_types, 'num_edge_types_by_shape':num_edge_types_by_shape,'x':x,'y':y}, relation2id
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return {'hyperedge_indices': hyperedge_indices, 'hyperedge_types': hyperedge_types,
+            'num_edge_types_by_shape': num_edge_types_by_shape, 'x': x, 'y': y}, relation2id
