@@ -37,9 +37,10 @@ now = datetime.now()
 date_time = now.strftime("%d_%m_%Y_%H:%M:%S")
 current_directory = os.getcwd()
 log_directory = os.path.join(current_directory, args.log_dir + date_time)
+model_dir = os.path.join(log_directory, 'models')
 
-if not os.path.exists(log_directory):
-    os.makedirs(log_directory)
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -185,7 +186,10 @@ def train(trial=None):
             if trial and trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
 
-    torch.save(model.state_dict(), log_directory + '/models/' + 'trial{}.pt'.format(trial.number))
+    if trial:
+        torch.save(model.state_dict(), log_directory + '/models/' + 'trial{}.pt'.format(trial.number))
+    else:
+        torch.save(model.state_dict(), log_directory + '/models/' + 'model.pt')
     with open(log_directory + '/models/' + 'relation2id.pickle', 'wb') as f:
         pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
