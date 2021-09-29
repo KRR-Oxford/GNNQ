@@ -12,55 +12,32 @@ from optuna.trial import TrialState
 import pickle
 from torch.utils.tensorboard import SummaryWriter
 
-parser = argparse.ArgumentParser(description='Bla bla')
-parser.add_argument('--query_string', type=str,
-                    default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
-parser.add_argument('--train_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset1/'])
-parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
-parser.add_argument('--aug', type=bool, default=True)
-parser.add_argument('--max_num_subquery_vars', type=int, default=5)
-parser.add_argument('--pretrained_model', type=str, default='')
-parser.add_argument('--relations2id', type=str, default='')
-parser.add_argument('--base_dim', type=int, default=16)
-parser.add_argument('--num_layers', type=int, default=4)
-parser.add_argument('--epochs', type=int, default=250)
-parser.add_argument('--val_epochs', type=int, default=10)
-parser.add_argument('--lr', type=int, default=0.00625)
-parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
-parser.add_argument('--negative_slope', type=int, default=0.1)
-parser.add_argument('--positive_sample_weight', type=int, default=1)
-parser.add_argument('--log_dir', type=str, default='runs/')
-parser.add_argument('--hyperparam_tune', type=bool, default=False)
-args = parser.parse_args()
-
-now = datetime.now()
-date_time = now.strftime("%d_%m_%Y_%H:%M:%S")
-current_directory = os.getcwd()
-log_directory = os.path.join(current_directory, args.log_dir + date_time)
-model_dir = os.path.join(log_directory, 'models')
-
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Todo:
+#  - Double check that ids for sub-queries are correct
+#  - Clean up and comment functions in the data_util.py
+#  - Double check behavior if subquery does not have answers on training data
+#  - At the moment we consider rules with path structured bodies
+#  - Add optional testing to main.py
 
 
-def train(trial=None):
+def train(args, trial=None):
+    now = datetime.now()
+    date_time = now.strftime("%d_%m_%Y_%H:%M:%S")
+    current_directory = os.getcwd()
+    log_directory = os.path.join(current_directory, args.log_dir + date_time)
+    model_dir = os.path.join(log_directory, 'models')
+
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
     writer = SummaryWriter(log_directory)
 
-    train_data_directories = args.train_data
-    val_data_directories = args.val_data
-    query_string = args.query_string
     base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
-    val_epochs = args.val_epochs
     learning_rate = args.lr
     lr_scheduler_step_size = args.lr_scheduler_step_size
     negative_slope = args.negative_slope
-    positive_sample_weight = args.positive_sample_weight
-    aug = args.aug
-    max_num_subquery_vars = args.max_num_subquery_vars
 
     if trial:
         base_dim = trial.suggest_int('base_dim', 8, 32)
@@ -81,14 +58,15 @@ def train(trial=None):
             relation2id = pickle.load(f)
     else:
         relation2id = None
-    for directory in train_data_directories:
+
+    for directory in args.train_data:
         data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
-                                                      query_string, base_dim, aug, max_num_subquery_vars, relation2id)
+                                                      args.query_string, base_dim, args.aug, args.max_num_subquery_vars, relation2id)
         train_data.append(data_object)
 
-    for directory in val_data_directories:
+    for directory in args.val_data:
         data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
-                                                      query_string, base_dim, aug, max_num_subquery_vars, relation2id)
+                                                      args.query_string, base_dim, args.aug, args.max_num_subquery_vars, relation2id)
         val_data.append(data_object)
 
     model = HGNN(base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
@@ -151,7 +129,7 @@ def train(trial=None):
         train_precision.reset()
         train_recall.reset()
 
-        if (epoch != 0) and (epoch % val_epochs == 0):
+        if (epoch != 0) and (epoch % args.val_epochs == 0):
             total_loss = 0
             for data_object in val_data:
                 pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
@@ -195,31 +173,60 @@ def train(trial=None):
     # Report best metric -- can this be different from the metric used for trial report
 
 
-def objective(trial):
-    loss = train(trial)
+def objective(trial, args):
+    loss = train(args, trial)
     return loss
 
 
-if not args.hyperparam_tune:
-    train()
-else:
-    study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
-        n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
-    study.optimize(objective, n_trials=1)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Bla bla')
+    parser.add_argument('--query_string', type=str,
+                        default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
+    parser.add_argument('--train_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset1/'])
+    parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
+    parser.add_argument('--test_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
+    parser.add_argument('--aug', type=bool, default=True)
+    parser.add_argument('--max_num_subquery_vars', type=int, default=5)
+    parser.add_argument('--pretrained_model', type=str, default='')
+    parser.add_argument('--relations2id', type=str, default='')
+    parser.add_argument('--base_dim', type=int, default=16)
+    parser.add_argument('--num_layers', type=int, default=4)
+    parser.add_argument('--epochs', type=int, default=250)
+    parser.add_argument('--val_epochs', type=int, default=10)
+    parser.add_argument('--lr', type=int, default=0.00625)
+    parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
+    parser.add_argument('--negative_slope', type=int, default=0.1)
+    parser.add_argument('--positive_sample_weight', type=int, default=1)
+    parser.add_argument('--log_dir', type=str, default='runs/')
+    parser.add_argument('--hyperparam_tune', type=bool, default=True)
+    args = parser.parse_args()
 
-    pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
-    complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if not args.hyperparam_tune:
+        train(args)
+    else:
+        study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
+            n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
+        study.optimize(lambda trial: objective(trial, args), n_trials=1)
 
-    print("Study statistics: ")
-    print("  Number of finished trials: ", len(study.trials))
-    print("  Number of pruned trials: ", len(pruned_trials))
-    print("  Number of complete trials: ", len(complete_trials))
+        pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
+        complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
 
-    trial = study.best_trial
-    print("Best trial is trial number {}".format(trial.number))
+        print("Study statistics: ")
+        print("  Number of finished trials: ", len(study.trials))
+        print("  Number of pruned trials: ", len(pruned_trials))
+        print("  Number of complete trials: ", len(complete_trials))
 
-    print("  Value: ", trial.value)
+        trial = study.best_trial
+        print("Best trial is trial number {}".format(trial.number))
 
-    print("  Params: ")
-    for key, value in trial.params.items():
-        print("    {}: {}".format(key, value))
+        print("  Value: ", trial.value)
+
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
+
+    if args.test_data:
+        print('Start testing')
+
+
