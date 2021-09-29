@@ -1,3 +1,6 @@
+import os
+from datetime import datetime
+import json
 import torch
 from model import HGNN
 from data_utils import create_data_object
@@ -12,12 +15,12 @@ from torch.utils.tensorboard import SummaryWriter
 # ToDo: Trained model and logs should be saved in a directory with data and most important hyperparameters
 
 parser = argparse.ArgumentParser(description='Bla bla')
+parser.add_argument('--query_string', type=str, default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
 parser.add_argument('--train_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset1/'])
 parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
-parser.add_argument('--query_string', type=str, default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
 parser.add_argument('--aug', type=bool, default=True)
 parser.add_argument('--pretrained_model', type=str, default='')
-parser.add_argument('--encoding', type=str, default='')
+parser.add_argument('--relations2id', type=str, default='')
 parser.add_argument('--base_dim', type=int, default=16)
 parser.add_argument('--num_layers', type=int, default=4)
 parser.add_argument('--epochs', type=int, default=250)
@@ -26,12 +29,24 @@ parser.add_argument('--lr', type=int, default=0.00625)
 parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
 parser.add_argument('--negative_slope', type=int, default=0.1)
 parser.add_argument('--positive_sample_weight', type=int, default=1)
+parser.add_argument('--log_dir', type=str, default='runs/')
 args = parser.parse_args()
+
+now = datetime.now()
+date_time = now.strftime("%d_%m_%Y_%H:%M:%S")
+current_directory = os.getcwd()
+log_directory = os.path.join(current_directory, args.log_dir + date_time)
+
+if not os.path.exists(log_directory):
+    os.makedirs(log_directory)
+
+with open(os.path.join(log_directory,'config.txt'), 'w') as f:
+    json.dump(args.__dict__, f, indent=2)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def objective(trial):
-    writer = SummaryWriter()
+    writer = SummaryWriter(log_directory)
 
     train_data_directories = args.train_data
     val_data_directories = args.val_data
@@ -56,8 +71,8 @@ def objective(trial):
     train_data = []
     val_data = []
 
-    if args.encoding:
-        with open(args.encoding, 'rb') as f:
+    if args.relations2id:
+        with open(args.relations2id, 'rb') as f:
             relation2id = pickle.load(f)
     else:
         relation2id = None
@@ -159,8 +174,8 @@ def objective(trial):
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
 
-    torch.save(model.state_dict(), './models/' +'trial{}.pt'.format(trial.number))
-    with open('./models/' + 'relation2id.pickle', 'wb') as f:
+    torch.save(model.state_dict(), log_directory + '/models/' + 'trial{}.pt'.format(trial.number))
+    with open(log_directory + '/models/' + 'relation2id.pickle', 'wb') as f:
         pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
     return loss
