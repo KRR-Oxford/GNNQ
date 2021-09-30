@@ -1,5 +1,5 @@
 import torch
-import json
+import pickle
 import argparse
 import torchmetrics
 from model import HGNN
@@ -7,7 +7,11 @@ from model import HGNN
 from data_utils import create_data_object
 
 
-def test(model_dir, query_string, test_data_dirs, relation2id, base_dim, num_layers, negative_slope, aug, device):
+def test(test_data_dirs, query_string, model_directory, base_dim, num_layers, negative_slope, aug, device):
+
+    with open(model_directory + 'relation2id.pickle', 'rb') as f:
+        relation2id = pickle.load(f)
+
     test_data = []
     for directory in test_data_dirs:
         data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',

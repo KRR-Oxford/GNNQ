@@ -1,34 +1,26 @@
-import os
-from datetime import datetime
-import json
 import torch
-from model import HGNN
-from data_utils import create_data_object
-import numpy as np
 import argparse
 import torchmetrics
 import optuna
 from optuna.trial import TrialState
+import os
+from datetime import datetime
+import json
 import pickle
 from torch.utils.tensorboard import SummaryWriter
+from model import HGNN
+from data_utils import create_data_object
+from test import test
 
 # Todo:
 #  - Double check that ids for sub-queries are correct
 #  - Clean up and comment functions in the data_util.py
 #  - Double check behavior if subquery does not have answers on training data
 #  - At the moment we consider rules with path structured bodies
-#  - Add optional testing to main.py
+#  - Change code such that val and test use the same code
 
 
-def train(args, trial=None):
-    now = datetime.now()
-    date_time = now.strftime("%d_%m_%Y_%H:%M:%S")
-    current_directory = os.getcwd()
-    log_directory = os.path.join(current_directory, args.log_dir + date_time)
-    model_dir = os.path.join(log_directory, 'models')
-
-    if not os.path.exists(model_dir):
-        os.makedirs(model_dir)
+def train(device, log_directory, model_directory, args, trial=None):
 
     writer = SummaryWriter(log_directory)
 
@@ -166,16 +158,16 @@ def train(args, trial=None):
                 raise optuna.exceptions.TrialPruned()
 
     if trial:
-        torch.save(model.state_dict(), log_directory + '/models/' + 'trial{}.pt'.format(trial.number))
+        torch.save(model.state_dict(), model_directory + 'trial{}.pt'.format(trial.number))
     else:
-        torch.save(model.state_dict(), log_directory + '/models/' + 'model.pt')
-    with open(log_directory + '/models/' + 'relation2id.pickle', 'wb') as f:
+        torch.save(model.state_dict(), model_directory + 'model.pt')
+    with open(model_directory + 'relation2id.pickle', 'wb') as f:
         pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
 
 
-def objective(trial, args):
-    loss = train(args, trial)
+def objective(trial, device, log_directory, model_directory, args):
+    loss = train(device, log_directory, model_directory, args, trial)
     return loss
 
 
@@ -185,8 +177,9 @@ if __name__ == '__main__':
                         default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
     parser.add_argument('--train_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset1/'])
     parser.add_argument('--val_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
-    parser.add_argument('--test_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset2/'])
-    parser.add_argument('--aug', type=bool, default=True)
+    parser.add_argument('--test_data', type=str, nargs='+', default=['wsdbm-data-model-2/dataset3/'])
+    parser.add_argument('--aug', action='store_true', default=False)
+    parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_num_subquery_vars', type=int, default=5)
     parser.add_argument('--pretrained_model', type=str, default='')
     parser.add_argument('--relations2id', type=str, default='')
@@ -199,16 +192,26 @@ if __name__ == '__main__':
     parser.add_argument('--negative_slope', type=int, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=1)
     parser.add_argument('--log_dir', type=str, default='runs/')
-    parser.add_argument('--hyperparam_tune', action='store_false', default=False)
+    parser.add_argument('--hyperparam_tune', action='store_true', default=False)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    now = datetime.now()
+    date_time = now.strftime("%d_%m_%Y_%H:%M:%S")
+    current_directory = os.getcwd()
+    log_directory = os.path.join(current_directory, args.log_dir + date_time)
+    model_directory = os.path.join(log_directory, 'models')
+
+    if not os.path.exists(model_directory):
+        os.makedirs(model_directory)
+
     if not args.hyperparam_tune:
-        train(args)
+        train(device, log_directory, model_directory, args)
     else:
         study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
             n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
-        study.optimize(lambda trial: objective(trial, args), n_trials=1)
+        study.optimize(lambda trial: objective(trial, device, log_directory, model_directory, args), n_trials=100)
 
         pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
         complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
@@ -227,7 +230,8 @@ if __name__ == '__main__':
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
 
-    if args.test_data:
+    if args.test:
         print('Start testing')
+        test(args.test_data_dirs, args.query_string, model_directory, args.base_dim, args.num_layers, args.negative_slope, args.aug, device)
 
 
