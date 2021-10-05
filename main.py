@@ -16,7 +16,7 @@ from test import test
 #  - Double check that ids for sub-queries are correct
 #  - Clean up and comment functions in the data_util.py
 #  - Double check behavior if subquery does not have answers on training data
-#  - At the moment we consider rules with path structured bodies
+#  - Think about rules with different body structures
 #  - Change code such that val and test use the same code
 
 
@@ -232,6 +232,6 @@ if __name__ == '__main__':
 
     if args.test:
         print('Start testing')
-        test(args.test_data_dirs, args.query_string, model_directory, args.base_dim, args.num_layers, args.negative_slope, args.aug, device)
+        test(args.test_data, args.query_string, model_directory, args.base_dim, args.num_layers, args.negative_slope, args.aug, args.max_num_subquery_vars, device)
 
 

@@ -7,13 +7,13 @@ from model import HGNN
 from data_utils import create_data_object
 
 
-def test(test_data_dirs, query_string, model_directory, base_dim, num_layers, negative_slope, aug, device):
+def test(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug, max_num_subquery_vars, device):
 
     with open(model_directory + 'relation2id.pickle', 'rb') as f:
         relation2id = pickle.load(f)
 
     test_data = []
-    for directory in test_data_dirs:
+    for directory in test_data_directories:
         data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
                                                       query_string, base_dim, aug, max_num_subquery_vars, relation2id)
         test_data.append(data_object)
@@ -23,7 +23,7 @@ def test(test_data_dirs, query_string, model_directory, base_dim, num_layers, ne
     for param in model.parameters():
         print(type(param.data), param.size())
 
-    model.load_state_dict(model_dir)
+    model.load_state_dict(model_directory)
     test_accuracy = torchmetrics.Accuracy(threshold=0.5)
     test_precision = torchmetrics.Precision(threshold=0.5)
     test_recall = torchmetrics.Recall(threshold=0.5)
@@ -64,14 +64,4 @@ if __name__ == '__main__':
     parser.add_argument('--relations2id', type=str, default='')
     args = parser.parse_args()
 
-    model_dir = args.model
-    query_string = args.query_string
-    test_data_dirs = args.test_data
-    relation2id = args.relation2id
-    base_dim = args.base_dim
-    num_layers = args.num_layers
-    negative_slope = args.negative_slope
-    aug = args.aug
-    max_num_subquery_vars = args.max_num_subquery_vars
-
-    test(model_dir, query_string, test_data_dirs, relation2id, base_dim, num_layers, negative_slope, aug, device)
+    test(args.test_data, args.model, args.query_string, args.relation2id, args.base_dim, args.num_layers, args.negative_slope, args.aug, args.max_num_subquery_vars, device)

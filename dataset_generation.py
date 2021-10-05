@@ -71,14 +71,4 @@ if __name__ == '__main__':
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
          'http://purl.org/stuff/rev#totalVotes'], directory + "graph.nt", directory + "corrupted_graph.nt", 3, 0.05)
-    directory = 'wsdbm-data-model-2/dataset2/'
-    corrupt_graph(
-        ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
-         'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
-         'http://schema.org/language', 'http://schema.org/legalName', 'http://purl.org/goodrelations/offers',
-         'http://schema.org/eligibleRegion', 'http://purl.org/goodrelations/includes', 'http://schema.org/jobTitle',
-         'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
-         'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
-         'http://purl.org/stuff/rev#totalVotes'], directory + "graph.nt",
-                                                  directory + "corrupted_graph.nt", 3, 0.05, path_length_dict)
     print('Done')
