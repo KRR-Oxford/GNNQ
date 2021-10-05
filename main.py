@@ -158,9 +158,9 @@ def train(device, log_directory, model_directory, args, trial=None):
                 raise optuna.exceptions.TrialPruned()
 
     if trial:
-        torch.save(model.state_dict(), model_directory + 'trial{}.pt'.format(trial.number))
+        torch.save(model.state_dict(), model_directory + '/trial{}.pt'.format(trial.number))
     else:
-        torch.save(model.state_dict(), model_directory + 'model.pt')
+        torch.save(model.state_dict(), model_directory + '/model.pt')
     with open(model_directory + 'relation2id.pickle', 'wb') as f:
         pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
