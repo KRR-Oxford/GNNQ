@@ -9,7 +9,7 @@ from data_utils import create_data_object
 
 def test(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug, max_num_subquery_vars, device):
 
-    with open(model_directory + 'relation2id.pickle', 'rb') as f:
+    with open(model_directory + '/relation2id.pickle', 'rb') as f:
         relation2id = pickle.load(f)
 
     test_data = []
@@ -23,7 +23,7 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
     for param in model.parameters():
         print(type(param.data), param.size())
 
-    model.load_state_dict(model_directory)
+    model.load_state_dict(model_directory + '/model.pt')
     test_accuracy = torchmetrics.Accuracy(threshold=0.5)
     test_precision = torchmetrics.Precision(threshold=0.5)
     test_recall = torchmetrics.Recall(threshold=0.5)
