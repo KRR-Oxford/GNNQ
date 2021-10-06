@@ -20,6 +20,8 @@ from test import test
 #  - Double check behavior if subquery does not have answers on training data
 #  - Think about rules with different body structures
 #  - Change code such that val and test use the same code
+#  - Change code such that for param optimisation the query answers do not have to be computed every time
+#  - Figure out why model is not loading in test
 
 
 def train(device, log_directory, model_directory, args, trial=None):
