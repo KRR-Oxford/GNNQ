@@ -1,4 +1,5 @@
 import torch
+import os
 import pickle
 import argparse
 import torchmetrics
@@ -9,12 +10,12 @@ from data_utils import create_data_object
 
 def test(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug, max_num_subquery_vars, device):
 
-    with open(model_directory + '/relation2id.pickle', 'rb') as f:
+    with open(os.path.join(model_directory, 'relation2id.pickle'), 'rb') as f:
         relation2id = pickle.load(f)
 
     test_data = []
     for directory in test_data_directories:
-        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
+        data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
                                                       query_string, base_dim, aug, max_num_subquery_vars, relation2id)
         test_data.append(data_object)
 
@@ -23,7 +24,7 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
     for param in model.parameters():
         print(type(param.data), param.size())
 
-    model.load_state_dict(model_directory + '/model.pt')
+    model.load_state_dict(os.path.join(model_directory, 'model.pt'))
     test_accuracy = torchmetrics.Accuracy(threshold=0.5)
     test_precision = torchmetrics.Precision(threshold=0.5)
     test_recall = torchmetrics.Recall(threshold=0.5)

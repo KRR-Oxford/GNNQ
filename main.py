@@ -13,6 +13,8 @@ from data_utils import create_data_object
 from test import test
 
 # Todo:
+#  - Think about how and where to construct path for models
+#  - Double check that root of query answer is in first position
 #  - Double check that ids for sub-queries are correct
 #  - Clean up and comment functions in the data_util.py
 #  - Double check behavior if subquery does not have answers on training data
@@ -53,12 +55,12 @@ def train(device, log_directory, model_directory, args, trial=None):
         relation2id = None
 
     for directory in args.train_data:
-        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
+        data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
                                                       args.query_string, base_dim, args.aug, args.max_num_subquery_vars, relation2id)
         train_data.append(data_object)
 
     for directory in args.val_data:
-        data_object, relation2id = create_data_object(directory + 'graph.nt', directory + 'corrupted_graph.nt',
+        data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
                                                       args.query_string, base_dim, args.aug, args.max_num_subquery_vars, relation2id)
         val_data.append(data_object)
 
@@ -158,10 +160,10 @@ def train(device, log_directory, model_directory, args, trial=None):
                 raise optuna.exceptions.TrialPruned()
 
     if trial:
-        torch.save(model.state_dict(), model_directory + '/trial{}.pt'.format(trial.number))
+        torch.save(model.state_dict(), os.path.join(model_directory, 'trial{}.pt'.format(trial.number)))
     else:
-        torch.save(model.state_dict(), model_directory + '/model.pt')
-    with open(model_directory + 'relation2id.pickle', 'wb') as f:
+        torch.save(model.state_dict(), os.path.join(model_directory, 'model.pt'))
+    with open(os.path.join(model_directory, 'relation2id.pickle'), 'wb') as f:
         pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
 
