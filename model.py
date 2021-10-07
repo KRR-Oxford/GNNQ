@@ -62,27 +62,21 @@ class HGNNLayer(nn.Module):
 
 
 class HGNN(nn.Module):
-    def __init__(self, base_dim, num_edge_types_by_shape, num_layers):
+    def __init__(self, feat_dim, base_dim, num_edge_types_by_shape, num_layers):
         super(HGNN, self).__init__()
         self.num_edge_types_by_shape = num_edge_types_by_shape
         self.num_layers = num_layers
         self.msg_layers = nn.ModuleList([])
-        for i in range(self.num_layers):
+        self.msg_layers.append(HGNNLayer(feat_dim, base_dim, num_edge_types_by_shape))
+        for i in range(1, self.num_layers):
             self.msg_layers.append(HGNNLayer(base_dim, base_dim, num_edge_types_by_shape))
-        # self.msg_layers.append(HGNNLayer(base_dim, 1, num_edge_types_by_shape))
-        # self.lin_layer_1 = nn.Linear(base_dim, base_dim)
-        self.lin_layer_2 = nn.Linear(base_dim, 1)
+        self.lin_layer = nn.Linear(base_dim, 1)
 
     def forward(self, x, hyperedge_index, hyperedge_type, logits=False, negative_slope=0.01):
         # Message passing layers
         for i in range(self.num_layers):
             x = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
-            # x = torch.relu(x)
             x = nn.functional.leaky_relu(x, negative_slope=negative_slope)
-        # Two layer mlp as binary classifier
-        # x = self.lin_layer_1(x)
-        # x = nn.functional.leaky_relu(x)
-        x = self.lin_layer_2(x)
-        # x = self.msg_layers[self.num_layers](x, hyperedge_index, hyperedge_type)
+        x = self.lin_layer(x)
         if logits: return x
         return torch.sigmoid(x)

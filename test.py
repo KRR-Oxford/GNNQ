@@ -19,7 +19,8 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
                                                       query_string, base_dim, aug, max_num_subquery_vars, relation2id)
         test_data.append(data_object)
 
-    model = HGNN(base_dim, test_data[0]['num_edge_types_by_shape'], num_layers)
+    feat_dim = 1
+    model = HGNN(feat_dim, base_dim, test_data[0]['num_edge_types_by_shape'], num_layers)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())

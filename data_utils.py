@@ -120,12 +120,14 @@ def create_y_vector(answers, num_nodes):
     return y
 
 
-def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, base_dim, aug, max_num_subquery_vars,
+def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, max_num_subquery_vars,
                        relation2id=None):
     triples = load_triples(path_to_corrupted_graph)
     triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples, relation2id)
     num_nodes = len(entity2id)
-    x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, base_dim - 1)), dim=1)
+    # dummy feature vector dimension
+    feat_dim = 1
+    x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
     answers = compute_query_answers(path_to_graph, query_string)
     answers = [entity2id[entity[0]] for entity in answers]
     y = create_y_vector(answers, num_nodes)

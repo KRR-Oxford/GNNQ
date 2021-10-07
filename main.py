@@ -13,6 +13,7 @@ from data_utils import create_data_object
 from test import test
 
 # Todo:
+#  - Start encoding unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states?
 #  - Think about how and where to construct path for models
 #  - Double check that root of query answer is in first position
 #  - Double check that ids for sub-queries are correct
@@ -67,7 +68,7 @@ def train(device, log_directory, model_directory, args, trial=None):
                                                       args.query_string, base_dim, args.aug, args.max_num_subquery_vars, relation2id)
         val_data.append(data_object)
 
-    model = HGNN(base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
+    model = HGNN(len(train_data[0]['x']), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
