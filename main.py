@@ -60,12 +60,12 @@ def train(device, log_directory, model_directory, args, trial=None):
 
     for directory in args.train_data:
         data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
-                                                      args.query_string, base_dim, args.aug, args.max_num_subquery_vars, relation2id)
+                                                      args.query_string, args.aug, args.max_num_subquery_vars, relation2id)
         train_data.append(data_object)
 
     for directory in args.val_data:
         data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
-                                                      args.query_string, base_dim, args.aug, args.max_num_subquery_vars, relation2id)
+                                                      args.query_string, args.aug, args.max_num_subquery_vars, relation2id)
         val_data.append(data_object)
 
     model = HGNN(len(train_data[0]['x']), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)

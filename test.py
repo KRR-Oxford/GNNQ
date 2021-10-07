@@ -16,7 +16,7 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
     test_data = []
     for directory in test_data_directories:
         data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
-                                                      query_string, base_dim, aug, max_num_subquery_vars, relation2id)
+                                                      query_string, aug, max_num_subquery_vars, relation2id)
         test_data.append(data_object)
 
     feat_dim = 1
