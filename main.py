@@ -68,7 +68,7 @@ def train(device, log_directory, model_directory, args, trial=None):
                                                       args.query_string, args.aug, args.max_num_subquery_vars, relation2id)
         val_data.append(data_object)
 
-    model = HGNN(len(train_data[0]['x']), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
+    model = HGNN(len(train_data[0]['x'][0]), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
