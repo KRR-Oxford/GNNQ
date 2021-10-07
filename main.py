@@ -22,11 +22,20 @@ from test import test
 #  - Think about rules with different body structures
 #  - Change code such that val and test use the same code
 #  - Change code such that for param optimisation the query answers do not have to be computed every time
-#  - Figure out why model is not loading in test
 #  - Use a file to specify the head relations in the data generation procedure
+#  - Evaluate best trial on test data
+
+# Hyperparameters used in this function can not be tuned with optuna
+def prep_data(data_directories, relation2id=None):
+    data = []
+    for directory in data_directories:
+        data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
+                                                      args.query_string, args.aug, args.max_num_subquery_vars, relation2id)
+        data.append(data_object)
+    return data, relation2id
 
 
-def train(device, log_directory, model_directory, args, trial=None):
+def train(device, train_data, val_data, log_directory, model_directory, args, trial=None):
 
     writer = SummaryWriter(log_directory)
 
@@ -48,25 +57,6 @@ def train(device, log_directory, model_directory, args, trial=None):
     else:
         with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
-
-    train_data = []
-    val_data = []
-
-    if args.relations2id:
-        with open(args.relations2id, 'rb') as f:
-            relation2id = pickle.load(f)
-    else:
-        relation2id = None
-
-    for directory in args.train_data:
-        data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
-                                                      args.query_string, args.aug, args.max_num_subquery_vars, relation2id)
-        train_data.append(data_object)
-
-    for directory in args.val_data:
-        data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
-                                                      args.query_string, args.aug, args.max_num_subquery_vars, relation2id)
-        val_data.append(data_object)
 
     model = HGNN(len(train_data[0]['x'][0]), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
     model.to(device)
@@ -167,13 +157,11 @@ def train(device, log_directory, model_directory, args, trial=None):
         torch.save(model.state_dict(), os.path.join(model_directory, 'trial{}.pt'.format(trial.number)))
     else:
         torch.save(model.state_dict(), os.path.join(model_directory, 'model.pt'))
-    with open(os.path.join(model_directory, 'relation2id.pickle'), 'wb') as f:
-        pickle.dump(relation2id, f)
     # Report best metric -- can this be different from the metric used for trial report
 
 
-def objective(trial, device, log_directory, model_directory, args):
-    loss = train(device, log_directory, model_directory, args, trial)
+def objective(trial, device, train_data, val_data, log_directory, model_directory, args):
+    loss = train(device, train_data, val_data, log_directory, model_directory, args, trial)
     return loss
 
 
@@ -188,7 +176,7 @@ if __name__ == '__main__':
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_num_subquery_vars', type=int, default=5)
     parser.add_argument('--pretrained_model', type=str, default='')
-    parser.add_argument('--relations2id', type=str, default='')
+    parser.add_argument('--relation2id', type=str, default='')
     parser.add_argument('--base_dim', type=int, default=16)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
@@ -212,12 +200,23 @@ if __name__ == '__main__':
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
 
+    if args.relation2id:
+        with open(args.relations2id, 'rb') as f:
+            relation2id = pickle.load(f)
+        train_data, _  = prep_data(args.train_data, relation2id)
+        val_data, _ = prep_data(args.train_data, relation2id)
+    else:
+        train_data, relation2id = prep_data(args.train_data)
+        val_data, _ = prep_data(args.train_data, relation2id)
+        with open(os.path.join(model_directory, 'relation2id.pickle'), 'wb') as f:
+            pickle.dump(relation2id, f)
+
     if not args.hyperparam_tune:
-        train(device, log_directory, model_directory, args)
+        train(device, train_data, val_data, log_directory, model_directory, args)
     else:
         study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
             n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
-        study.optimize(lambda trial: objective(trial, device, log_directory, model_directory, args), n_trials=100)
+        study.optimize(lambda trial: objective(trial, device, train_data, val_data, log_directory, model_directory, args), n_trials=100)
 
         pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
         complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
