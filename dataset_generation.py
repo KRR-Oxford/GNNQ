@@ -1,5 +1,5 @@
 import torch
-import pickle
+import os
 import pickle
 import uuid
 from rdflib import Graph, URIRef
@@ -28,16 +28,21 @@ def load_answers(path_to_answers):
 
 
 # Todo: Change function to randomly delete edges from the graph
-def corrupt_graph(head_relations, path_to_graph, path_to_corrupted_graph, max_path_length, drop_prop,
-                  path_length_dict=None):
+def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
+                  path_length_dict_directory=None):
+    save_dict = False
     g = Graph()
-    g.parse(path_to_graph, format="nt")
-    if not path_length_dict:
+    g.parse(os.path.join(data_directory, 'graph.nt'), format="nt")
+    if not path_length_dict_directory:
         path_length_dict = {}
+        save_dict = True
     else:
+        with open(os.path.join(path_length_dict_directory, 'path_length_dict.pickle'), 'rb') as f:
+            path_length_dict = pickle.load(f)
         assert len(head_relations) == len(path_length_dict)
     for s, p, o in g:
         if str(p) in head_relations:
+            # Even though this case should no arise this function does not fail if relation type is not in an existing path_length_dict that was passed as a parameter - do we want this behavior?
             if str(p) not in path_length_dict.keys():
                 path_length = torch.randint(low=1, high=max_path_length + 1, size=(1,)).item()
                 path_length_dict[str(p)] = path_length
@@ -57,12 +62,16 @@ def corrupt_graph(head_relations, path_to_graph, path_to_corrupted_graph, max_pa
         drop = torch.bernoulli(p=drop_prop, input=torch.tensor([0])).item() == 1
         if drop:
             g.remove((s, p, o))
-    g.serialize(destination=path_to_corrupted_graph, format='nt')
+    g.serialize(destination=os.path.join(data_directory, 'corrupted_graph.nt'), format='nt')
+    if save_dict:
+        with open(os.path.join(data_directory, 'path_length_dict.pickle'), 'wb') as f:
+            pickle.dump(path_length_dict, f)
     return path_length_dict
 
 
 if __name__ == '__main__':
-    directory = 'wsdbm-data-model-2/dataset1/'
+    # Remember to use the same path_length_dict for all datasets
+    directory = 'wsdbm-data-model-2/dummy/'
     path_length_dict = corrupt_graph(
         ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
          'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
@@ -70,5 +79,5 @@ if __name__ == '__main__':
          'http://schema.org/eligibleRegion', 'http://purl.org/goodrelations/includes', 'http://schema.org/jobTitle',
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
-         'http://purl.org/stuff/rev#totalVotes'], directory + "graph.nt", directory + "corrupted_graph.nt", 3, 0.05)
+         'http://purl.org/stuff/rev#totalVotes'], directory, 3, 0.05, 'wsdbm-data-model-2/dataset1/')
     print('Done')

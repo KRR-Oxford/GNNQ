@@ -22,6 +22,7 @@ from test import test
 #  - Change code such that val and test use the same code
 #  - Change code such that for param optimisation the query answers do not have to be computed every time
 #  - Figure out why model is not loading in test
+#  - Use a file to specify the head relations in the data generation procedure
 
 
 def train(device, log_directory, model_directory, args, trial=None):
