@@ -71,7 +71,7 @@ def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
 
 if __name__ == '__main__':
     # Remember to use the same path_length_dict for all datasets
-    directory = 'wsdbm-data-model-2/dummy/'
+    directory = 'datasets/dataset1/'
     path_length_dict = corrupt_graph(
         ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
          'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
@@ -79,5 +79,5 @@ if __name__ == '__main__':
          'http://schema.org/eligibleRegion', 'http://purl.org/goodrelations/includes', 'http://schema.org/jobTitle',
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
-         'http://purl.org/stuff/rev#totalVotes'], directory, 3, 0.05, 'wsdbm-data-model-2/dataset1/')
+         'http://purl.org/stuff/rev#totalVotes'], directory, 3, 0.15)
     print('Done')
