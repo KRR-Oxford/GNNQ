@@ -1,6 +1,7 @@
 import torch
 import os
 import pickle
+import json
 import argparse
 import torchmetrics
 from model import HGNN
@@ -54,16 +55,12 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--model_directory', type=str)
-    parser.add_argument('--test_data', type=str, default=['wsdbm-data-model-2/dummy'])
-    parser.add_argument('--aug', action='store_true', default=False)
-    parser.add_argument('--query_string', type=str,
-                        default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
-    parser.add_argument('--base_dim', type=int, default=16)
-    parser.add_argument('--num_layers', type=int, default=5)
-    parser.add_argument('--negative_slope', type=int, default=0.1)
-    parser.add_argument('--max_num_subquery_vars', type=int, default=5)
+    parser = argparse.ArgumentParser(description='Bla bla')
+    parser.add_argument('--log_directory', type=str, default='./runs/08_10_2021_14:53:13')
+    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/dataset3'])
     args = parser.parse_args()
 
-    test(args.test_data, args.query_string, args.model_directory, args.base_dim, args.num_layers, args.negative_slope, args.aug, args.max_num_subquery_vars, device)
+    with open(os.path.join(args.log_directory, 'config.txt'),'r') as f:
+        run_args = json.load(f)
+
+    test(args.test_data, run_args['query_string'], os.path.join(args.log_directory, 'models'), run_args['base_dim'], run_args['num_layers'], run_args['negative_slope'], run_args['aug'], run_args['max_num_subquery_vars'], device)

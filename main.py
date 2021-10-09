@@ -13,17 +13,16 @@ from data_utils import create_data_object
 from test import test
 
 # Todo:
-#  - Start encoding unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states?
-#  - Think about how and where to construct path for models
+#  - Encode unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states
 #  - Double check that root of query answer is in first position
 #  - Double check that ids for sub-queries are correct
 #  - Clean up and comment functions in the data_util.py
-#  - Double check behavior if subquery does not have answers on training data
+#  - Double check behavior if a subquery does not have answers on training data
 #  - Think about rules with different body structures
 #  - Change code such that val and test use the same code
-#  - Change code such that for param optimisation the query answers do not have to be computed every time
 #  - Use a file to specify the head relations in the data generation procedure
-#  - Evaluate best trial on test data
+#  - SummaryWriter should be passed to test function
+#  - Evaluate best trial on test data for hyperparameter tuning
 
 # Hyperparameters used in this function can not be tuned with optuna
 def prep_data(data_directories, relation2id=None):
