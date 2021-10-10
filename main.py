@@ -143,8 +143,8 @@ def train(device, train_data, val_data, log_directory, model_directory, args, tr
             print('Precision ' + str(val_pre))
             print('Recall ' + str(val_re))
             writer.add_scalar('Loss val', total_loss, epoch)
-            writer.add_scalar('Precision val', pre, epoch)
-            writer.add_scalar('Recall val', re, epoch)
+            writer.add_scalar('Precision val', val_pre, epoch)
+            writer.add_scalar('Recall val', val_re, epoch)
             val_accuracy.reset()
             val_precision.reset()
             val_recall.reset()
@@ -203,10 +203,10 @@ if __name__ == '__main__':
         with open(args.relations2id, 'rb') as f:
             relation2id = pickle.load(f)
         train_data, _  = prep_data(args.train_data, relation2id)
-        val_data, _ = prep_data(args.train_data, relation2id)
+        val_data, _ = prep_data(args.val_data, relation2id)
     else:
         train_data, relation2id = prep_data(args.train_data)
-        val_data, _ = prep_data(args.train_data, relation2id)
+        val_data, _ = prep_data(args.val_data, relation2id)
         with open(os.path.join(model_directory, 'relation2id.pickle'), 'wb') as f:
             pickle.dump(relation2id, f)
 

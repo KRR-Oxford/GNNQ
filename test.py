@@ -48,6 +48,9 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
     print('Accuracy ' + str(acc))
     print('Precision ' + str(pre))
     print('Recall ' + str(re))
+    test_accuracy.reset()
+    test_precision.reset()
+    test_recall.reset()
     # ToDo: Figure out why this returns results below 0.5
     # print('AUC ' + str(torchmetrics.functional.auc(pred, y_val_int, reorder=True).item()))
 
@@ -56,8 +59,8 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     parser = argparse.ArgumentParser(description='Bla bla')
-    parser.add_argument('--log_directory', type=str, default='./runs/08_10_2021_14:53:13')
-    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/dataset3'])
+    parser.add_argument('--log_directory', type=str, default='./runs/08_10_2021_15:13:53')
+    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/dataset4'])
     args = parser.parse_args()
 
     with open(os.path.join(args.log_directory, 'config.txt'),'r') as f:
