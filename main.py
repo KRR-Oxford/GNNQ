@@ -122,7 +122,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, tr
             for data_object in val_data:
                 pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                              negative_slope=negative_slope).flatten()
-                # Weigh false positive samples from the previous epoch higher to address bad recall
+                # Weigh false positive samples from the previous epoch higher to address bad precision
                 sample_weights_val = args.positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
                 total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'],
                                                                                    weight=sample_weights_val)
@@ -168,9 +168,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Bla bla')
     parser.add_argument('--query_string', type=str,
                         default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
-    parser.add_argument('--train_data', type=str, nargs='+', default=['datasets/dataset1/'])
-    parser.add_argument('--val_data', type=str, nargs='+', default=['datasets/dataset2/'])
-    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/dataset3/'])
+    parser.add_argument('--train_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset1/','datasets/wsdbm-data-model-v1/dataset2/','datasets/wsdbm-data-model-v1/dataset3/'])
+    parser.add_argument('--val_data', type=str, nargs='+', default=['datasets/dataset4/'])
+    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/dataset5/'])
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_num_subquery_vars', type=int, default=5)

@@ -35,6 +35,9 @@ def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
     g.parse(os.path.join(data_directory, 'graph.nt'), format="nt")
     if not path_length_dict_directory:
         path_length_dict = {}
+        for r in head_relations:
+            path_length = torch.randint(low=1, high=max_path_length + 1, size=(1,)).item()
+            path_length_dict[str(r)] = path_length
         save_dict = True
     else:
         with open(os.path.join(path_length_dict_directory, 'path_length_dict.pickle'), 'rb') as f:
@@ -42,12 +45,7 @@ def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
         assert len(head_relations) == len(path_length_dict)
     for s, p, o in g:
         if str(p) in head_relations:
-            # Even though this case should no arise this function does not fail if relation type is not in an existing path_length_dict that was passed as a parameter - do we want this behavior?
-            if str(p) not in path_length_dict.keys():
-                path_length = torch.randint(low=1, high=max_path_length + 1, size=(1,)).item()
-                path_length_dict[str(p)] = path_length
-            else:
-                path_length = path_length_dict[str(p)]
+            path_length = path_length_dict[str(p)]
             if path_length == 1:
                 g.add((s, URIRef(str(p) + str(1)), o))
             else:
@@ -71,7 +69,7 @@ def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
 
 if __name__ == '__main__':
     # Remember to use the same path_length_dict for all datasets
-    directory = 'datasets/dataset1/'
+    directory = 'datasets/wsdbm-data-model-v1/dataset5/'
     path_length_dict = corrupt_graph(
         ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
          'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
@@ -79,5 +77,5 @@ if __name__ == '__main__':
          'http://schema.org/eligibleRegion', 'http://purl.org/goodrelations/includes', 'http://schema.org/jobTitle',
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
-         'http://purl.org/stuff/rev#totalVotes'], directory, 3, 0.15)
+         'http://purl.org/stuff/rev#totalVotes'], directory, 2, 0.1, 'datasets/wsdbm-data-model-v1/dataset1/')
     print('Done')

@@ -20,8 +20,7 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
                                                       query_string, aug, max_num_subquery_vars, relation2id)
         test_data.append(data_object)
 
-    feat_dim = 1
-    model = HGNN(feat_dim, base_dim, test_data[0]['num_edge_types_by_shape'], num_layers)
+    model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['num_edge_types_by_shape'], num_layers)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
@@ -59,8 +58,8 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     parser = argparse.ArgumentParser(description='Bla bla')
-    parser.add_argument('--log_directory', type=str, default='./runs/08_10_2021_15:13:53')
-    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/dataset4'])
+    parser.add_argument('--log_directory', type=str, default='')
+    parser.add_argument('--test_data', type=str, nargs='+', default=[''])
     args = parser.parse_args()
 
     with open(os.path.join(args.log_directory, 'config.txt'),'r') as f:
