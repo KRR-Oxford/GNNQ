@@ -20,10 +20,11 @@ from test import test
 #  - Clean up and comment functions in the data_util.py
 #  - Double check behavior if a subquery does not have answers on training data
 #  - Think about rules with different body structures
-#  - Change code such that val and test use the same code
 #  - Use a file to specify the head relations in the data generation procedure
 #  - SummaryWriter should be passed to test function
 #  - Evaluate best trial on test data for hyperparameter tuning
+#  - How many MLP layers as final classifier?
+#  - Randomly choose a KG for every update step?
 
 # Hyperparameters used in this function can not be tuned with optuna
 def prep_data(data_directories, relation2id=None):
@@ -88,7 +89,8 @@ def train(device, train_data, val_data, log_directory, model_directory, args, tr
         model.train()
         optimizer.zero_grad()
         total_train_loss = 0
-        for data_object in train_data:
+        batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
+        for data_object in batch:
             pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                          logits=True, negative_slope=negative_slope).flatten()
             # Weigh false positive samples from the previous epoch higher to address bad recall
@@ -190,6 +192,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
     parser.add_argument('--val_epochs', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--lr', type=int, default=0.00625)
     parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
     parser.add_argument('--negative_slope', type=int, default=0.1)
