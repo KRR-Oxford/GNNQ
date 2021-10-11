@@ -169,8 +169,8 @@ if __name__ == '__main__':
     parser.add_argument('--query_string', type=str,
                         default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
     parser.add_argument('--train_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset1/','datasets/wsdbm-data-model-v1/dataset2/','datasets/wsdbm-data-model-v1/dataset3/'])
-    parser.add_argument('--val_data', type=str, nargs='+', default=['datasets/dataset4/'])
-    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/dataset5/'])
+    parser.add_argument('--val_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset4/'])
+    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset5/'])
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_num_subquery_vars', type=int, default=5)
