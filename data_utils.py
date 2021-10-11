@@ -70,12 +70,15 @@ def compute_query_answers(path_to_graph, query_string):
     return answers
 
 
-def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_depth=2, max_num_subquery_vars=5):
+def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_gen_strategy, subquery_depth,
+                             max_num_subquery_vars):
     g = Graph()
     g.parse(path_to_corrupted_graph, format="nt")
     root = create_tree(query_string)
-    # trees = create_subquery_trees(root, subquery_depth)
-    trees = create_all_connceted_trees(root, max_num_subquery_vars)
+    if subquery_gen_strategy == 'greedy':
+        trees = create_subquery_trees(root, subquery_depth)
+    else:
+        trees = create_all_connceted_trees(root, max_num_subquery_vars)
     subqueries = create_subqueries(trees)
     subquery_answers = []
     for subquery in subqueries:
@@ -120,7 +123,8 @@ def create_y_vector(answers, num_nodes):
     return y
 
 
-def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, max_num_subquery_vars,
+def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, subquery_gen_strategy, subquery_depth,
+                       max_num_subquery_vars,
                        relation2id=None):
     triples = load_triples(path_to_corrupted_graph)
     triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples, relation2id)
@@ -133,7 +137,10 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     y = create_y_vector(answers, num_nodes)
     hyperedge_indices, hyperedge_types, num_edge_types_by_shape = create_index_matrices(triples)
     if aug:
-        subquery_answers = compute_subquery_answers(path_to_corrupted_graph, query_string,
+        subquery_answers = compute_subquery_answers(path_to_corrupted_graph=path_to_corrupted_graph,
+                                                    query_string=query_string,
+                                                    subquery_gen_strategy=subquery_gen_strategy,
+                                                    subquery_depth=subquery_depth,
                                                     max_num_subquery_vars=max_num_subquery_vars)
         for answer_set in subquery_answers:
             subquery_answers = [[entity2id[entity] for entity in answer] for answer in answer_set]
