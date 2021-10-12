@@ -21,13 +21,11 @@ from test import test
 #  - Double check behavior if a subquery does not have answers on training data
 #  - Think about rules with different body structures
 #  - Use a file to specify the head relations in the data generation procedure
-#  - SummaryWriter should be passed to test function
-#  - Evaluate best trial on test data for hyperparameter tuning
 #  - How many MLP layers as final classifier?
 #  - Randomly choose a KG for every update step?
 
 # Hyperparameters used in this function can not be tuned with optuna
-def prep_data(data_directories, relation2id=None):
+def prep_data(data_directories, args, relation2id=None):
     data = []
     for directory in data_directories:
         data_object, relation2id = create_data_object(path_to_graph=os.path.join(directory, 'graph.nt'),
@@ -42,9 +40,7 @@ def prep_data(data_directories, relation2id=None):
     return data, relation2id
 
 
-def train(device, train_data, val_data, log_directory, model_directory, args, trial=None):
-    writer = SummaryWriter(log_directory)
-
+def train(device, train_data, val_data, log_directory, model_directory, args, summary_writer=None, trial=None):
     base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
@@ -118,9 +114,10 @@ def train(device, train_data, val_data, log_directory, model_directory, args, tr
         print('Accuracy ' + str(acc))
         print('Precision ' + str(pre))
         print('Recall ' + str(re))
-        writer.add_scalar('Loss training', total_train_loss, epoch)
-        writer.add_scalar('Precision training', pre, epoch)
-        writer.add_scalar('Recall training', re, epoch)
+        if summary_writer:
+            summary_writer.add_scalar('Loss training', total_train_loss, epoch)
+            summary_writer.add_scalar('Precision training', pre, epoch)
+            summary_writer.add_scalar('Recall training', re, epoch)
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
@@ -150,9 +147,10 @@ def train(device, train_data, val_data, log_directory, model_directory, args, tr
             print('Accuracy ' + str(val_acc))
             print('Precision ' + str(val_pre))
             print('Recall ' + str(val_re))
-            writer.add_scalar('Loss val', total_loss, epoch)
-            writer.add_scalar('Precision val', val_pre, epoch)
-            writer.add_scalar('Recall val', val_re, epoch)
+            if summary_writer:
+                summary_writer.add_scalar('Loss val', total_loss, epoch)
+                summary_writer.add_scalar('Precision val', val_pre, epoch)
+                summary_writer.add_scalar('Recall val', val_re, epoch)
             val_accuracy.reset()
             val_precision.reset()
             val_recall.reset()
@@ -168,7 +166,8 @@ def train(device, train_data, val_data, log_directory, model_directory, args, tr
 
 
 def objective(trial, device, train_data, val_data, log_directory, model_directory, args):
-    loss = train(device, train_data, val_data, log_directory, model_directory, args, trial)
+    loss = train(device=device, train_data=train_data, val_data=val_data, log_directory=log_directory,
+                 model_directory=model_directory, args=args, summary_writer=None, trial=trial)
     return loss
 
 
@@ -208,6 +207,7 @@ if __name__ == '__main__':
     current_directory = os.getcwd()
     log_directory = os.path.join(current_directory, args.log_dir + date_time)
     model_directory = os.path.join(log_directory, 'models')
+    writer = SummaryWriter(log_directory)
 
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
@@ -215,21 +215,31 @@ if __name__ == '__main__':
     if args.relation2id:
         with open(args.relations2id, 'rb') as f:
             relation2id = pickle.load(f)
-        train_data, _ = prep_data(args.train_data, relation2id)
-        val_data, _ = prep_data(args.val_data, relation2id)
+        train_data, _ = prep_data(args.train_data, args, relation2id)
+        val_data, _ = prep_data(args.val_data, args, relation2id)
     else:
-        train_data, relation2id = prep_data(args.train_data)
-        val_data, _ = prep_data(args.val_data, relation2id)
+        train_data, relation2id = prep_data(args.train_data, args)
+        val_data, _ = prep_data(args.val_data, args, relation2id)
         with open(os.path.join(model_directory, 'relation2id.pickle'), 'wb') as f:
             pickle.dump(relation2id, f)
 
     if not args.hyperparam_tune:
-        train(device, train_data, val_data, log_directory, model_directory, args)
+        train(device=device, train_data=train_data, val_data=val_data, log_directory=log_directory,
+              model_directory=model_directory, args=args, summary_writer=writer)
+
+        if args.test:
+            print('Start testing')
+            test(test_data_directories=args.test_data, query_string=args.query_string, model_directory=model_directory,
+                 base_dim=args.base_dim, num_layers=args.num_layers, negative_slope=args.negative_slope,
+                 aug=args.aug, subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
+                 max_num_subquery_vars=args.max_num_subquery_vars, device=device, summary_writer=writer)
+
     else:
         study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
             n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
         study.optimize(
-            lambda trial: objective(trial, device, train_data, val_data, log_directory, model_directory, args),
+            lambda trial: objective(trial=trial, device=device, train_data=train_data, val_data=val_data,
+                                    log_directory=log_directory, model_directory=model_directory, args=args),
             n_trials=100)
 
         pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
@@ -248,8 +258,3 @@ if __name__ == '__main__':
         print("  Params: ")
         for key, value in trial.params.items():
             print("    {}: {}".format(key, value))
-
-    if args.test:
-        print('Start testing')
-        test(args.test_data, args.query_string, model_directory, args.base_dim, args.num_layers, args.negative_slope,
-             args.aug, args.max_num_subquery_vars, device)

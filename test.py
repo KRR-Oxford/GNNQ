@@ -9,15 +9,20 @@ from model import HGNN
 from data_utils import create_data_object
 
 
-def test(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug, max_num_subquery_vars, device):
-
+def test(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug,
+         subquery_gen_strategy, subquery_depth, max_num_subquery_vars, device, summary_writer=None):
     with open(os.path.join(model_directory, 'relation2id.pickle'), 'rb') as f:
         relation2id = pickle.load(f)
 
     test_data = []
     for directory in test_data_directories:
-        data_object, relation2id = create_data_object(os.path.join(directory, 'graph.nt'), os.path.join(directory, 'corrupted_graph.nt'),
-                                                      query_string, aug, max_num_subquery_vars, relation2id)
+        data_object, relation2id = create_data_object(path_to_corrupted_graph=os.path.join(directory, 'graph.nt'),
+                                                      path_to_graph=os.path.join(directory, 'corrupted_graph.nt'),
+                                                      query_string=query_string, aug=aug,
+                                                      subquery_gen_strategy=subquery_gen_strategy,
+                                                      subquery_depth=subquery_depth,
+                                                      max_num_subquery_vars=max_num_subquery_vars,
+                                                      relation2id=relation2id)
         test_data.append(data_object)
 
     model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['num_edge_types_by_shape'], num_layers)
@@ -40,13 +45,16 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
         test_precision(pred, data_object['y'].int())
         test_recall(pred, data_object['y'].int())
 
-    acc = test_accuracy.compute().item()
-    pre = test_precision.compute().item()
-    re = test_recall.compute().item()
+    test_acc = test_accuracy.compute().item()
+    test_pre = test_precision.compute().item()
+    test_re = test_recall.compute().item()
     print('Test')
-    print('Accuracy ' + str(acc))
-    print('Precision ' + str(pre))
-    print('Recall ' + str(re))
+    print('Accuracy ' + str(test_acc))
+    print('Precision ' + str(test_pre))
+    print('Recall ' + str(test_re))
+    if summary_writer:
+        summary_writer.add_scalar('Precision test', test_pre)
+        summary_writer.add_scalar('Recall test', test_re)
     test_accuracy.reset()
     test_precision.reset()
     test_recall.reset()
@@ -62,7 +70,11 @@ if __name__ == '__main__':
     parser.add_argument('--test_data', type=str, nargs='+', default=[''])
     args = parser.parse_args()
 
-    with open(os.path.join(args.log_directory, 'config.txt'),'r') as f:
+    with open(os.path.join(args.log_directory, 'config.txt'), 'r') as f:
         run_args = json.load(f)
 
-    test(args.test_data, run_args['query_string'], os.path.join(args.log_directory, 'models'), run_args['base_dim'], run_args['num_layers'], run_args['negative_slope'], run_args['aug'], run_args['max_num_subquery_vars'], device)
+    test(test_data_directories=args.test_data, query_string=run_args['query_string'],
+         model_directory=os.path.join(args.log_directory, 'models'), base_dim=run_args['base_dim'],
+         num_layers=run_args['num_layers'], negative_slope=run_args['negative_slope'], aug=run_args['aug'],
+         subquery_gen_strategy=run_args['subquery_gen_strategy'], subquery_depth=run_args['subquery_depth'],
+         max_num_subquery_vars=run_args['max_num_subquery_vars'], device=device)
