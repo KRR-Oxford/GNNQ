@@ -76,10 +76,10 @@ class HGNN(nn.Module):
     def forward(self, x, hyperedge_index, hyperedge_type, logits=False, negative_slope=0.01):
         # Message passing layers
         for i in range(self.num_layers):
-            h = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
-            h = nn.functional.leaky_relu(h, negative_slope=negative_slope)
-        h = self.lin_layer1(h)
-        h = nn.functional.leaky_relu(h, negative_slope=negative_slope)
-        h = self.lin_layer2(h)
-        if logits: return h
-        return torch.sigmoid(h)
+            x = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
+            x = nn.functional.leaky_relu(x, negative_slope=negative_slope)
+        x = self.lin_layer1(x)
+        x = nn.functional.leaky_relu(x, negative_slope=negative_slope)
+        x = self.lin_layer2(x)
+        if logits: return x
+        return torch.sigmoid(x)
