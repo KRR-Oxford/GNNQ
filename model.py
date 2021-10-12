@@ -70,13 +70,16 @@ class HGNN(nn.Module):
         self.msg_layers.append(HGNNLayer(feat_dim, base_dim, num_edge_types_by_shape))
         for i in range(1, self.num_layers):
             self.msg_layers.append(HGNNLayer(base_dim, base_dim, num_edge_types_by_shape))
-        self.lin_layer = nn.Linear(base_dim, 1)
+        self.lin_layer1 = nn.Linear(base_dim, base_dim)
+        self.lin_layer2 = nn.Linear(base_dim, 1)
 
     def forward(self, x, hyperedge_index, hyperedge_type, logits=False, negative_slope=0.01):
         # Message passing layers
         for i in range(self.num_layers):
-            x = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
-            x = nn.functional.leaky_relu(x, negative_slope=negative_slope)
-        x = self.lin_layer(x)
-        if logits: return x
-        return torch.sigmoid(x)
+            h = self.msg_layers[i](x, hyperedge_index, hyperedge_type)
+            h = nn.functional.leaky_relu(h, negative_slope=negative_slope)
+        h = self.lin_layer1(h)
+        h = nn.functional.leaky_relu(h, negative_slope=negative_slope)
+        h = self.lin_layer2(h)
+        if logits: return h
+        return torch.sigmoid(h)
