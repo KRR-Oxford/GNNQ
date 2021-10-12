@@ -9,7 +9,7 @@ import json
 import pickle
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
-from data_utils import create_data_object
+from data_utils import prep_data
 from test import test
 
 
@@ -23,21 +23,7 @@ from test import test
 #  - Use a file to specify the head relations in the data generation procedure
 #  - How many MLP layers as final classifier?
 #  - Randomly choose a KG for every update step?
-
-# Hyperparameters used in this function can not be tuned with optuna
-def prep_data(data_directories, args, relation2id=None):
-    data = []
-    for directory in data_directories:
-        data_object, relation2id = create_data_object(path_to_graph=os.path.join(directory, 'graph.nt'),
-                                                      path_to_corrupted_graph=os.path.join(directory,
-                                                                                           'corrupted_graph.nt'),
-                                                      query_string=args.query_string, aug=args.aug,
-                                                      subquery_gen_strategy=args.subquery_gen_strategy,
-                                                      subquery_depth=args.subquery_depth,
-                                                      max_num_subquery_vars=args.max_num_subquery_vars,
-                                                      relation2id=relation2id)
-        data.append(data_object)
-    return data, relation2id
+#  - Evaluation of unobserved answers
 
 
 def train(device, train_data, val_data, log_directory, model_directory, args, summary_writer=None, trial=None):
@@ -89,9 +75,9 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         for data_object in batch:
             pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                          logits=True, negative_slope=negative_slope).flatten()
-            # Weigh false positive samples from the previous epoch higher to address bad recall
             # We could also just use a small fraction of negative samples
-            sample_weights_train = positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
+            sample_weights_train = positive_sample_weight * data_object['y'] + (
+                    torch.ones(len(data_object['y'])) - data_object['y'])
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, data_object['y'],
                                                                         weight=sample_weights_train)
             loss.backward()
@@ -121,14 +107,15 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
-
+        total_loss = 10000
         if (epoch != 0) and (epoch % args.val_epochs == 0):
             total_loss = 0
             for data_object in val_data:
                 pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                              negative_slope=negative_slope).flatten()
-                # Weigh false positive samples from the previous epoch higher to address bad precision
-                sample_weights_val = args.positive_sample_weight * data_object['y'] + torch.ones(len(data_object['y']))
+                # Weighs positive samples with a factor of 2 - not intended
+                sample_weights_val = args.positive_sample_weight * data_object['y'] + (
+                        torch.ones(len(data_object['y'])) - data_object['y'])
                 total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'],
                                                                                    weight=sample_weights_val)
                 val_accuracy(pred, data_object['y'].int())
@@ -162,7 +149,8 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         torch.save(model.state_dict(), os.path.join(model_directory, 'trial{}.pt'.format(trial.number)))
     else:
         torch.save(model.state_dict(), os.path.join(model_directory, 'model.pt'))
-    # Report best metric -- can this be different from the metric used for trial report
+    # Why does optuna require to a return value?
+    return total_loss
 
 
 def objective(trial, device, train_data, val_data, log_directory, model_directory, args):
@@ -215,11 +203,21 @@ if __name__ == '__main__':
     if args.relation2id:
         with open(args.relations2id, 'rb') as f:
             relation2id = pickle.load(f)
-        train_data, _ = prep_data(args.train_data, args, relation2id)
-        val_data, _ = prep_data(args.val_data, args, relation2id)
+        train_data, _ = prep_data(data_directories=args.train_data, query_string=args.query_string, aug=args.aug,
+                                  subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
+                                  max_num_subquery_vars=args.max_num_subquery_vars, relation2id=relation2id)
+        val_data, _ = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
+                                subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
+                                max_num_subquery_vars=args.max_num_subquery_vars, relation2id=relation2id)
     else:
-        train_data, relation2id = prep_data(args.train_data, args)
-        val_data, _ = prep_data(args.val_data, args, relation2id)
+        train_data, relation2id = prep_data(data_directories=args.train_data, query_string=args.query_string,
+                                            aug=args.aug,
+                                            subquery_gen_strategy=args.subquery_gen_strategy,
+                                            subquery_depth=args.subquery_depth,
+                                            max_num_subquery_vars=args.max_num_subquery_vars)
+        val_data, _ = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
+                                subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
+                                max_num_subquery_vars=args.max_num_subquery_vars, relation2id=relation2id)
         with open(os.path.join(model_directory, 'relation2id.pickle'), 'wb') as f:
             pickle.dump(relation2id, f)
 

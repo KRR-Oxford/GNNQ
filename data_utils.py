@@ -1,3 +1,4 @@
+import os
 import re
 import torch
 from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
@@ -148,3 +149,19 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
                 subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
     return {'hyperedge_indices': hyperedge_indices, 'hyperedge_types': hyperedge_types,
             'num_edge_types_by_shape': num_edge_types_by_shape, 'x': x, 'y': y}, relation2id
+
+# Hyperparameters used in this function can not be tuned with optuna
+def prep_data(data_directories, query_string, aug, subquery_gen_strategy, subquery_depth, max_num_subquery_vars,
+              relation2id=None):
+    data = []
+    for directory in data_directories:
+        data_object, relation2id = create_data_object(path_to_graph=os.path.join(directory, 'graph.nt'),
+                                                      path_to_corrupted_graph=os.path.join(directory,
+                                                                                           'corrupted_graph.nt'),
+                                                      query_string=query_string, aug=aug,
+                                                      subquery_gen_strategy=subquery_gen_strategy,
+                                                      subquery_depth=subquery_depth,
+                                                      max_num_subquery_vars=max_num_subquery_vars,
+                                                      relation2id=relation2id)
+        data.append(data_object)
+    return data, relation2id

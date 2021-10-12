@@ -4,9 +4,8 @@ import pickle
 import json
 import argparse
 import torchmetrics
+from data_utils import prep_data
 from model import HGNN
-
-from data_utils import create_data_object
 
 
 def test(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug,
@@ -14,16 +13,9 @@ def test(test_data_directories, query_string, model_directory, base_dim, num_lay
     with open(os.path.join(model_directory, 'relation2id.pickle'), 'rb') as f:
         relation2id = pickle.load(f)
 
-    test_data = []
-    for directory in test_data_directories:
-        data_object, relation2id = create_data_object(path_to_corrupted_graph=os.path.join(directory, 'graph.nt'),
-                                                      path_to_graph=os.path.join(directory, 'corrupted_graph.nt'),
-                                                      query_string=query_string, aug=aug,
-                                                      subquery_gen_strategy=subquery_gen_strategy,
-                                                      subquery_depth=subquery_depth,
-                                                      max_num_subquery_vars=max_num_subquery_vars,
-                                                      relation2id=relation2id)
-        test_data.append(data_object)
+    test_data, _ = prep_data(data_directories=test_data_directories, query_string=query_string, aug=aug,
+                          subquery_gen_strategy=subquery_gen_strategy, subquery_depth=subquery_depth,
+                          max_num_subquery_vars=max_num_subquery_vars, relation2id=relation2id)
 
     model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['num_edge_types_by_shape'], num_layers)
     model.to(device)
