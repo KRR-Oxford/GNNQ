@@ -8,7 +8,7 @@ from data_utils import prep_data
 from model import HGNN
 
 
-def test(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug,
+def eval(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug,
          subquery_gen_strategy, subquery_depth, max_num_subquery_vars, device, summary_writer=None):
     with open(os.path.join(model_directory, 'relation2id.pickle'), 'rb') as f:
         relation2id = pickle.load(f)
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     with open(os.path.join(args.log_directory, 'config.txt'), 'r') as f:
         run_args = json.load(f)
 
-    test(test_data_directories=args.test_data, query_string=run_args['query_string'],
+    eval(test_data_directories=args.test_data, query_string=run_args['query_string'],
          model_directory=os.path.join(args.log_directory, 'models'), base_dim=run_args['base_dim'],
          num_layers=run_args['num_layers'], negative_slope=run_args['negative_slope'], aug=run_args['aug'],
          subquery_gen_strategy=run_args['subquery_gen_strategy'], subquery_depth=run_args['subquery_depth'],

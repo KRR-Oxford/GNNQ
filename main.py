@@ -10,7 +10,7 @@ import pickle
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
 from data_utils import prep_data
-from test import test
+from eval import eval
 
 
 # Todo:
@@ -21,7 +21,7 @@ from test import test
 #  - Double check behavior if a subquery does not have answers on training data
 #  - Think about rules with different body structures
 #  - Use a file to specify the head relations in the data generation procedure
-#  - How many MLP layers as final classifier?
+#  - Use same code for validation and testing
 #  - Randomly choose a KG for every update step?
 #  - Evaluation of unobserved answers
 
@@ -113,11 +113,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             for data_object in val_data:
                 pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                              negative_slope=negative_slope).flatten()
-                # Weighs positive samples with a factor of 2 - not intended
-                sample_weights_val = args.positive_sample_weight * data_object['y'] + (
-                        torch.ones(len(data_object['y'])) - data_object['y'])
-                total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'],
-                                                                                   weight=sample_weights_val)
+                total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'])
                 val_accuracy(pred, data_object['y'].int())
                 val_precision(pred, data_object['y'].int())
                 val_recall(pred, data_object['y'].int())
@@ -227,7 +223,7 @@ if __name__ == '__main__':
 
         if args.test:
             print('Start testing')
-            test(test_data_directories=args.test_data, query_string=args.query_string, model_directory=model_directory,
+            eval(test_data_directories=args.test_data, query_string=args.query_string, model_directory=model_directory,
                  base_dim=args.base_dim, num_layers=args.num_layers, negative_slope=args.negative_slope,
                  aug=args.aug, subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
                  max_num_subquery_vars=args.max_num_subquery_vars, device=device, summary_writer=writer)
