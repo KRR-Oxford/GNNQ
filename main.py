@@ -118,7 +118,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             print('Precision ' + str(val_pre))
             print('Recall ' + str(val_re))
             if summary_writer:
-                summary_writer.add_scalar('Loss val', total_loss, epoch)
+                summary_writer.add_scalar('Loss val', loss, epoch)
                 summary_writer.add_scalar('Precision val', val_pre, epoch)
                 summary_writer.add_scalar('Recall val', val_re, epoch)
 
