@@ -10,7 +10,7 @@ import pickle
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
 from data_utils import prep_data
-from eval import eval
+from eval import eval, compute_metrics
 
 
 # Todo:
@@ -21,7 +21,6 @@ from eval import eval
 #  - Double check behavior if a subquery does not have answers on training data
 #  - Think about rules with different body structures
 #  - Use a file to specify the head relations in the data generation procedure
-#  - Use same code for validation and testing
 #  - Randomly choose a KG for every update step?
 #  - Evaluation of unobserved answers
 
@@ -46,7 +45,8 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    model = HGNN(len(train_data[0]['x'][0]), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers)
+    model = HGNN(len(train_data[0]['x'][0]), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers,
+                 negative_slope)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
@@ -62,9 +62,6 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
     train_accuracy = torchmetrics.Accuracy(threshold=0.5)
     train_precision = torchmetrics.Precision(threshold=0.5)
     train_recall = torchmetrics.Recall(threshold=0.5)
-    val_accuracy = torchmetrics.Accuracy(threshold=0.5)
-    val_precision = torchmetrics.Precision(threshold=0.5)
-    val_recall = torchmetrics.Recall(threshold=0.5)
 
     for epoch in range(epochs):
         print('Epoch-{0} lr: {1}'.format(epoch, lr_scheduler.get_last_lr()))
@@ -74,7 +71,9 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
         for data_object in batch:
             pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
-                         logits=True, negative_slope=negative_slope).flatten()
+                         logits=True).flatten()
+            # pred_index = (pred >= 0.5).nonzero(as_tuple=True)[0].tolist()
+            # false_positive = list(set(pred_index) - set(val_answers))
             # We could also just use a small fraction of negative samples
             sample_weights_train = positive_sample_weight * data_object['y'] + (
                     torch.ones(len(data_object['y'])) - data_object['y'])
@@ -89,8 +88,6 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             train_precision(pred, data_object['y'].int())
             train_recall(pred, data_object['y'].int())
         optimizer.step()
-
-        model.eval()
 
         # ToDo: Add auc score as metric
         acc = train_accuracy.compute().item()
@@ -107,26 +104,16 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
+        # dummy loss
         total_loss = 10000
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            total_loss = 0
-            for data_object in val_data:
-                pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
-                             negative_slope=negative_slope).flatten()
-                total_loss = total_loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'])
-                val_accuracy(pred, data_object['y'].int())
-                val_precision(pred, data_object['y'].int())
-                val_recall(pred, data_object['y'].int())
-
+            loss, val_acc, val_pre, val_re = compute_metrics(val_data, model)
             if trial:
                 trial.report(total_loss, epoch)
             lr_scheduler.step()
 
             print('Val')
             print(total_loss)
-            val_acc = val_accuracy.compute().item()
-            val_pre = val_precision.compute().item()
-            val_re = val_recall.compute().item()
             print('Accuracy ' + str(val_acc))
             print('Precision ' + str(val_pre))
             print('Recall ' + str(val_re))
@@ -134,9 +121,6 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
                 summary_writer.add_scalar('Loss val', total_loss, epoch)
                 summary_writer.add_scalar('Precision val', val_pre, epoch)
                 summary_writer.add_scalar('Recall val', val_re, epoch)
-            val_accuracy.reset()
-            val_precision.reset()
-            val_recall.reset()
 
             if trial and trial.should_prune():
                 raise optuna.exceptions.TrialPruned()

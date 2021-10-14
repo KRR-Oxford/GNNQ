@@ -8,38 +8,48 @@ from data_utils import prep_data
 from model import HGNN
 
 
+def compute_metrics(data, model):
+    loss = 0
+    accuracy = torchmetrics.Accuracy(threshold=0.5)
+    precision = torchmetrics.Precision(threshold=0.5)
+    recall = torchmetrics.Recall(threshold=0.5)
+    model.eval()
+    for data_object in data:
+        pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types']).flatten()
+        loss = loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'])
+        accuracy(pred, data_object['y'].int())
+        precision(pred, data_object['y'].int())
+        recall(pred, data_object['y'].int())
+    acc = accuracy.compute().item()
+    pre = precision.compute().item()
+    re = recall.compute().item()
+    # ToDo: Figure out why this returns results below 0.5
+    # print('AUC ' + str(torchmetrics.functional.auc(pred, y_val_int, reorder=True).item()))
+    accuracy.reset()
+    precision.reset()
+    recall.reset()
+    return loss, acc, pre, re
+
+
 def eval(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug,
          subquery_gen_strategy, subquery_depth, max_num_subquery_vars, device, summary_writer=None):
     with open(os.path.join(model_directory, 'relation2id.pickle'), 'rb') as f:
         relation2id = pickle.load(f)
 
     test_data, _ = prep_data(data_directories=test_data_directories, query_string=query_string, aug=aug,
-                          subquery_gen_strategy=subquery_gen_strategy, subquery_depth=subquery_depth,
-                          max_num_subquery_vars=max_num_subquery_vars, relation2id=relation2id)
+                             subquery_gen_strategy=subquery_gen_strategy, subquery_depth=subquery_depth,
+                             max_num_subquery_vars=max_num_subquery_vars, relation2id=relation2id)
 
-    model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['num_edge_types_by_shape'], num_layers)
+    model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['num_edge_types_by_shape'], num_layers,
+                 negative_slope)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
 
     model.load_state_dict(torch.load(os.path.join(model_directory, 'model.pt')))
-    test_accuracy = torchmetrics.Accuracy(threshold=0.5)
-    test_precision = torchmetrics.Precision(threshold=0.5)
-    test_recall = torchmetrics.Recall(threshold=0.5)
 
-    model.eval()
-    for data_object in test_data:
-        pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
-                     negative_slope=negative_slope).flatten()
-        # pred_index = (pred >= 0.5).nonzero(as_tuple=True)[0].tolist()
-        # false_positive = list(set(pred_index) - set(val_answers))
-        test_accuracy(pred, data_object['y'].int())
-        test_precision(pred, data_object['y'].int())
-        test_recall(pred, data_object['y'].int())
+    _, test_acc, test_pre, test_re = compute_metrics(test_data, model)
 
-    test_acc = test_accuracy.compute().item()
-    test_pre = test_precision.compute().item()
-    test_re = test_recall.compute().item()
     print('Test')
     print('Accuracy ' + str(test_acc))
     print('Precision ' + str(test_pre))
@@ -47,11 +57,6 @@ def eval(test_data_directories, query_string, model_directory, base_dim, num_lay
     if summary_writer:
         summary_writer.add_scalar('Precision test', test_pre)
         summary_writer.add_scalar('Recall test', test_re)
-    test_accuracy.reset()
-    test_precision.reset()
-    test_recall.reset()
-    # ToDo: Figure out why this returns results below 0.5
-    # print('AUC ' + str(torchmetrics.functional.auc(pred, y_val_int, reorder=True).item()))
 
 
 if __name__ == '__main__':

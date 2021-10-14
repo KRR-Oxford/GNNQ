@@ -27,7 +27,6 @@ class MyTestCase(unittest.TestCase):
                 test_num_edge_types_by_shape[shape], 1, 1)
 
         out = layer(x, test_hyperedge_index, test_hyperedge_type)
-        print(out)
         self.assertTrue(torch.equal(out, torch.tensor([[1.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
          0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
         [0.0000, 1.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
