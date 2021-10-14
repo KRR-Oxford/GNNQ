@@ -105,15 +105,15 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         train_precision.reset()
         train_recall.reset()
         # dummy loss
-        total_loss = 10000
+        loss = 10000
         if (epoch != 0) and (epoch % args.val_epochs == 0):
             loss, val_acc, val_pre, val_re = compute_metrics(val_data, model)
             if trial:
-                trial.report(total_loss, epoch)
+                trial.report(loss, epoch)
             lr_scheduler.step()
 
             print('Val')
-            print(total_loss)
+            print(loss)
             print('Accuracy ' + str(val_acc))
             print('Precision ' + str(val_pre))
             print('Recall ' + str(val_re))
@@ -130,7 +130,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
     else:
         torch.save(model.state_dict(), os.path.join(model_directory, 'model.pt'))
     # Why does optuna require to a return value?
-    return total_loss
+    return loss
 
 
 def objective(trial, device, train_data, val_data, log_directory, model_directory, args):
