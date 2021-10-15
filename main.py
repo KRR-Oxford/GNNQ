@@ -72,8 +72,9 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         for data_object in batch:
             pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                          logits=True).flatten()
-            # pred_index = (pred >= 0.5).nonzero(as_tuple=True)[0].tolist()
-            # false_positive = list(set(pred_index) - set(val_answers))
+            # positive_pred = torch.zeros_like(pred)
+            # positive_pred[pred >= 0.5] = 1
+            # false_positive_pred = torch.clamp(positive_pred - data_object['y'], min=0)
             # We could also just use a small fraction of negative samples
             sample_weights_train = positive_sample_weight * data_object['y'] + (
                     torch.ones(len(data_object['y'])) - data_object['y'])
@@ -150,8 +151,8 @@ if __name__ == '__main__':
     parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset5/'])
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
-    parser.add_argument('--subquery_gen_strategy', type=str, default='greedy')
-    parser.add_argument('--max_num_subquery_vars', type=int, default=5)
+    parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
+    parser.add_argument('--max_num_subquery_vars', type=int, default=6)
     parser.add_argument('--subquery_depth', type=int, default=2)
     parser.add_argument('--pretrained_model', type=str, default='')
     parser.add_argument('--relation2id', type=str, default='')
@@ -163,7 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=int, default=0.00625)
     parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
     parser.add_argument('--negative_slope', type=int, default=0.1)
-    parser.add_argument('--positive_sample_weight', type=int, default=1)
+    parser.add_argument('--positive_sample_weight', type=int, default=2)
     parser.add_argument('--log_dir', type=str, default='runs/')
     parser.add_argument('--hyperparam_tune', action='store_true', default=False)
     args = parser.parse_args()
