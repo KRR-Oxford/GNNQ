@@ -23,6 +23,7 @@ from eval import eval, compute_metrics
 #  - Use a file to specify the head relations in the data generation procedure
 #  - Randomly choose a KG for every update step?
 #  - Evaluation of unobserved answers
+#  - Implement AUC score
 
 
 def train(device, train_data, val_data, log_directory, model_directory, args, summary_writer=None, trial=None):
@@ -108,7 +109,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         # dummy loss
         loss = 10000
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            loss, val_acc, val_pre, val_re = compute_metrics(val_data, model)
+            loss, val_acc, val_pre, val_re, val_auc = compute_metrics(val_data, model)
             if trial:
                 trial.report(loss, epoch)
             lr_scheduler.step()
@@ -118,10 +119,12 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             print('Accuracy ' + str(val_acc))
             print('Precision ' + str(val_pre))
             print('Recall ' + str(val_re))
+            print('AUC' + str(val_auc))
             if summary_writer:
                 summary_writer.add_scalar('Loss val', loss, epoch)
                 summary_writer.add_scalar('Precision val', val_pre, epoch)
                 summary_writer.add_scalar('Recall val', val_re, epoch)
+                summary_writer.add_scalar('AUC val', val_auc, epoch)
 
             if trial and trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
@@ -215,7 +218,7 @@ if __name__ == '__main__':
 
     else:
         study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
-            n_startup_trials=5, n_warmup_steps=30, interval_steps=1))
+            n_startup_trials=5, n_warmup_steps=30, interval_steps=10))
         study.optimize(
             lambda trial: objective(trial=trial, device=device, train_data=train_data, val_data=val_data,
                                     log_directory=log_directory, model_directory=model_directory, args=args),

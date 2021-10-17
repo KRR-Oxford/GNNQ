@@ -13,6 +13,7 @@ def compute_metrics(data, model):
     accuracy = torchmetrics.Accuracy(threshold=0.5)
     precision = torchmetrics.Precision(threshold=0.5)
     recall = torchmetrics.Recall(threshold=0.5)
+    auroc = torchmetrics.AUROC(num_classes=None)
     model.eval()
     for data_object in data:
         pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types']).flatten()
@@ -20,15 +21,16 @@ def compute_metrics(data, model):
         accuracy(pred, data_object['y'].int())
         precision(pred, data_object['y'].int())
         recall(pred, data_object['y'].int())
+        auroc(pred,  data_object['y'].int())
     acc = accuracy.compute().item()
     pre = precision.compute().item()
     re = recall.compute().item()
-    # ToDo: Figure out why this returns results below 0.5
-    # print('AUC ' + str(torchmetrics.functional.auc(pred, y_val_int, reorder=True).item()))
+    auc = auroc.compute().item()
     accuracy.reset()
     precision.reset()
     recall.reset()
-    return loss, acc, pre, re
+    auroc.reset()
+    return loss, acc, pre, re, auc
 
 
 def eval(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug,
@@ -48,15 +50,17 @@ def eval(test_data_directories, query_string, model_directory, base_dim, num_lay
 
     model.load_state_dict(torch.load(os.path.join(model_directory, 'model.pt')))
 
-    _, test_acc, test_pre, test_re = compute_metrics(test_data, model)
+    _, test_acc, test_pre, test_re, test_auc = compute_metrics(test_data, model)
 
     print('Test')
     print('Accuracy ' + str(test_acc))
     print('Precision ' + str(test_pre))
     print('Recall ' + str(test_re))
+    print('AUC ' + str(test_auc))
     if summary_writer:
         summary_writer.add_scalar('Precision test', test_pre)
         summary_writer.add_scalar('Recall test', test_re)
+        summary_writer.add_scalar('AUC test', test_auc)
 
 
 if __name__ == '__main__':
