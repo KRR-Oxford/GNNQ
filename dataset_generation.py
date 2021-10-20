@@ -57,9 +57,9 @@ def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
                     g.add((new_subject, URIRef(str(p) + str(j)), new_object))
                     new_subject = new_object
                 g.add((new_subject, URIRef(str(p) + str(path_length)), o))
-        drop = torch.bernoulli(p=drop_prop, input=torch.tensor([0])).item() == 1
-        if drop:
-            g.remove((s, p, o))
+            drop = torch.bernoulli(p=drop_prop, input=torch.tensor([0])).item() == 1
+            if drop:
+                g.remove((s, p, o))
     g.serialize(destination=os.path.join(data_directory, 'corrupted_graph.nt'), format='nt')
     if save_dict:
         with open(os.path.join(data_directory, 'path_length_dict.pickle'), 'wb') as f:
@@ -69,13 +69,16 @@ def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
 
 if __name__ == '__main__':
     # Remember to use the same path_length_dict for all datasets
-    directory = 'datasets/wsdbm-data-model-v1/dataset5/'
-    path_length_dict = corrupt_graph(
-        ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
+    rels = ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
          'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
          'http://schema.org/language', 'http://schema.org/legalName', 'http://purl.org/goodrelations/offers',
          'http://schema.org/eligibleRegion', 'http://purl.org/goodrelations/includes', 'http://schema.org/jobTitle',
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
-         'http://purl.org/stuff/rev#totalVotes'], directory, 2, 0.1, 'datasets/wsdbm-data-model-v1/dataset1/')
+         'http://purl.org/stuff/rev#totalVotes']
+    # rels = ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
+    #         'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
+    #         'http://schema.org/language', 'http://purl.org/stuff/rev#hasReview']
+    directory = 'dummy'
+    path_length_dict = corrupt_graph(rels , directory, 2, 0.15)
     print('Done')

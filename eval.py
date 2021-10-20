@@ -13,7 +13,7 @@ def compute_metrics(data, model):
     accuracy = torchmetrics.Accuracy(threshold=0.5)
     precision = torchmetrics.Precision(threshold=0.5)
     recall = torchmetrics.Recall(threshold=0.5)
-    auroc = torchmetrics.AUROC(num_classes=None)
+    average_precision = torchmetrics.AveragePrecision()
     model.eval()
     for data_object in data:
         pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types']).flatten()
@@ -21,15 +21,15 @@ def compute_metrics(data, model):
         accuracy(pred, data_object['y'].int())
         precision(pred, data_object['y'].int())
         recall(pred, data_object['y'].int())
-        auroc(pred,  data_object['y'].int())
+        average_precision(pred, data_object['y'].int())
     acc = accuracy.compute().item()
     pre = precision.compute().item()
     re = recall.compute().item()
-    auc = auroc.compute().item()
+    auc = average_precision.compute().item()
     accuracy.reset()
     precision.reset()
     recall.reset()
-    auroc.reset()
+    average_precision.reset()
     return loss, acc, pre, re, auc
 
 
