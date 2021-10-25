@@ -19,11 +19,9 @@ from eval import eval, compute_metrics
 #  - Double check that ids for sub-queries are correct
 #  - Clean up and comment functions in the data_util.py
 #  - Double check behavior if a subquery does not have answers on training data
-#  - Think about rules with different body structures
 #  - Use a file to specify the head relations in the data generation procedure
-#  - Randomly choose a KG for every update step?
 #  - Evaluation of unobserved answers
-#  - Implement AUC score
+#  - Add or max as aggregation function?
 
 
 def train(device, train_data, val_data, log_directory, model_directory, args, summary_writer=None, trial=None):
@@ -119,7 +117,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             print('Accuracy ' + str(val_acc))
             print('Precision ' + str(val_pre))
             print('Recall ' + str(val_re))
-            print('AUC' + str(val_auc))
+            print('AUC ' + str(val_auc))
             if summary_writer:
                 summary_writer.add_scalar('Loss val', loss, epoch)
                 summary_writer.add_scalar('Precision val', val_pre, epoch)
