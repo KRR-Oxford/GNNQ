@@ -83,7 +83,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
                                                                         weight=sample_weights_train)
             loss.backward()
             total_train_loss = total_train_loss + loss
-            print('Loss: ' + loss)
+            print('Loss: ' + str(loss))
             pred = torch.sigmoid(pred)
             train_accuracy(pred, data_object['y'].int())
             train_precision(pred, data_object['y'].int())
