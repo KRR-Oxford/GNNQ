@@ -155,7 +155,7 @@ if __name__ == '__main__':
                         default=['datasets/wsdbm-data-model-v1/dataset1/', 'datasets/wsdbm-data-model-v1/dataset2/',
                                  'datasets/wsdbm-data-model-v1/dataset3/'])
     parser.add_argument('--val_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset4/'])
-    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset5/'])
+    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset5/','datasets/wsdbm-data-model-v1/dataset6/','datasets/wsdbm-data-model-v1/dataset7/'])
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
