@@ -64,7 +64,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
     train_recall = torchmetrics.Recall(threshold=threshold)
 
     for epoch in range(epochs):
-        print('Epoch-{0} lr: {1}'.format(epoch, lr_scheduler.get_last_lr()))
+        print('Epoch-{0} with lr {1}'.format(epoch, lr_scheduler.get_last_lr()))
         model.train()
         optimizer.zero_grad()
         total_train_loss = 0
@@ -83,7 +83,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
                                                                         weight=sample_weights_train)
             loss.backward()
             total_train_loss = total_train_loss + loss
-            print('Loss: ' + str(loss))
+            print('Loss: ' + str(loss.item()))
             pred = torch.sigmoid(pred)
             train_accuracy(pred, data_object['y'].int())
             train_precision(pred, data_object['y'].int())
@@ -113,7 +113,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             lr_scheduler.step()
 
             print('Validating!')
-            print('Validation loss :' + str(loss))
+            print('Validation loss: ' + str(loss.item()))
             print('Accuracy for all answers: ' + str(val_acc))
             print('Precision for all answers:  ' + str(val_pre))
             print('Recall for all answers: ' + str(val_re))

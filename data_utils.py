@@ -75,6 +75,7 @@ def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_gen
                              max_num_subquery_vars):
     g = Graph()
     g.parse(path_to_corrupted_graph, format="nt")
+    print('Generating subqueries!')
     root = create_tree(query_string)
     if subquery_gen_strategy == 'greedy':
         trees = create_subquery_trees(root, subquery_depth)
@@ -82,33 +83,36 @@ def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_gen
         trees = create_all_connceted_trees(root, max_num_subquery_vars)
     subqueries = create_subqueries(trees)
     subquery_answers = []
+    counter = 1
     for subquery in subqueries:
         qres = g.query(subquery)
         answers = []
         for row in qres:
             answers.append([str(entity).strip() for entity in row])
         subquery_answers.append(answers)
+        print('({0}/{1}) subqueries answered!'.format(counter, len(subqueries)))
+        counter = counter + 1
     return subquery_answers
 
 
 # Todo: Consolidate this function in the create index matrices method
 def add_tuples_to_index_matrices(tuples, index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape):
-    if len(tuples[0]) - 1 not in index_matrices_by_shape:
+    tuples = torch.tensor(tuples)
+    n, s = tuples.shape
+    s = s - 1
+    if s not in index_matrices_by_shape:
         id = 0
     else:
-        id = torch.max(edge_type_by_shape[len(tuples[0]) - 1]) + 1
-    for tuple in tuples:
-        tuple = torch.tensor(tuple)
-        # If there exists no edge of this shape
-        if len(tuple) - 1 not in index_matrices_by_shape:
-            index_matrices_by_shape[len(tuple) - 1] = torch.stack((tuple[1:], tuple[0].repeat(len(tuple) - 1)),
-                                                                  dim=0)
-            edge_type_by_shape[len(tuple) - 1] = torch.tensor([id])
-        else:
-            index_matrices_by_shape[len(tuple) - 1] = torch.cat((index_matrices_by_shape[len(tuple) - 1], torch.stack(
-                (tuple[1:], tuple[0].repeat(len(tuple) - 1)), dim=0)), dim=1)
-            edge_type_by_shape[len(tuple) - 1] = torch.cat((edge_type_by_shape[len(tuple) - 1], torch.tensor([id])),
-                                                           dim=0)
+        id = torch.max(edge_type_by_shape[s]) + 1
+    hyper_indices = torch.stack((tuples[:, 1:].flatten(), tuples[:, 0].unsqueeze(1).repeat((1, s)).flatten()), dim=0)
+    ids = torch.tensor([id]).repeat(n)
+    # If there exists no edge of this shape
+    if s not in index_matrices_by_shape:
+        index_matrices_by_shape[s] = hyper_indices
+        edge_type_by_shape[s] = ids
+    else:
+        index_matrices_by_shape[s] = torch.cat((index_matrices_by_shape[s], hyper_indices), dim=1)
+        edge_type_by_shape[s] = torch.cat((edge_type_by_shape[s], ids), dim=0)
     for shape in edge_type_by_shape:
         if shape != 1:
             num_edge_types_by_shape[shape] = len(torch.unique(edge_type_by_shape[shape]))
@@ -134,6 +138,7 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     feat_dim = 1
     x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
     answers = compute_query_answers(path_to_graph, query_string)
+    print(path_to_graph + ' contains {} answers for the specified query.'.format(len(answers)))
     answers = [entity2id[entity[0]] for entity in answers]
     y = create_y_vector(answers, num_nodes)
     observed_answers = compute_query_answers(path_to_corrupted_graph, query_string)
@@ -161,6 +166,7 @@ def prep_data(data_directories, query_string, aug, subquery_gen_strategy, subque
               relation2id=None):
     data = []
     for directory in data_directories:
+        print('Preparing dataset: ' + directory)
         data_object, relation2id = create_data_object(path_to_graph=os.path.join(directory, 'graph.nt'),
                                                       path_to_corrupted_graph=os.path.join(directory,
                                                                                            'corrupted_graph.nt'),
