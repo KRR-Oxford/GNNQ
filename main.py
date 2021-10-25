@@ -58,9 +58,10 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_scheduler_step_size, gamma=0.5)
 
     # Needs to be defined as module in the HGNN class to automatically move to GPU
-    train_accuracy = torchmetrics.Accuracy(threshold=0.5)
-    train_precision = torchmetrics.Precision(threshold=0.5)
-    train_recall = torchmetrics.Recall(threshold=0.5)
+    threshold = 0.5
+    train_accuracy = torchmetrics.Accuracy(threshold=threshold)
+    train_precision = torchmetrics.Precision(threshold=threshold)
+    train_recall = torchmetrics.Recall(threshold=threshold)
 
     for epoch in range(epochs):
         print('Epoch-{0} lr: {1}'.format(epoch, lr_scheduler.get_last_lr()))
@@ -68,6 +69,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         optimizer.zero_grad()
         total_train_loss = 0
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
+        print('Training!')
         for data_object in batch:
             pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
                          logits=True).flatten()
@@ -81,48 +83,52 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
                                                                         weight=sample_weights_train)
             loss.backward()
             total_train_loss = total_train_loss + loss
-            print('Train loss')
-            print(loss)
+            print('Loss: ' + loss)
             pred = torch.sigmoid(pred)
             train_accuracy(pred, data_object['y'].int())
             train_precision(pred, data_object['y'].int())
             train_recall(pred, data_object['y'].int())
         optimizer.step()
 
-        # ToDo: Add auc score as metric
         acc = train_accuracy.compute().item()
         pre = train_precision.compute().item()
         re = train_recall.compute().item()
-        print('Train')
-        print('Accuracy ' + str(acc))
-        print('Precision ' + str(pre))
-        print('Recall ' + str(re))
+        print('Accuracy for all answers: ' + str(acc))
+        print('Precision for all answers: ' + str(pre))
+        print('Recall for all answers: ' + str(re))
         if summary_writer:
-            summary_writer.add_scalar('Loss training', total_train_loss, epoch)
-            summary_writer.add_scalar('Precision training', pre, epoch)
-            summary_writer.add_scalar('Recall training', re, epoch)
+            summary_writer.add_scalar('Loss for all answers on the training datasets.', total_train_loss, epoch)
+            summary_writer.add_scalar('Precision for all answers on the training datasets.', pre, epoch)
+            summary_writer.add_scalar('Recall for all answers on the training datasets.', re, epoch)
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
         # dummy loss
         loss = 10000
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            loss, val_acc, val_pre, val_re, val_auc = compute_metrics(val_data, model)
+            loss, val_acc, val_pre, val_re, val_auc, val_unobserved_pre, val_unobserved_re, val_unobserved_auc = compute_metrics(
+                val_data, model, threshold)
             if trial:
                 trial.report(loss, epoch)
             lr_scheduler.step()
 
-            print('Val')
-            print(loss)
-            print('Accuracy ' + str(val_acc))
-            print('Precision ' + str(val_pre))
-            print('Recall ' + str(val_re))
-            print('AUC ' + str(val_auc))
+            print('Validating!')
+            print('Validation loss :' + loss)
+            print('Accuracy for all answers: ' + str(val_acc))
+            print('Precision for all answers:  ' + str(val_pre))
+            print('Recall for all answers: ' + str(val_re))
+            print('AUC for all answers: ' + str(val_auc))
+            print('Precision for unobserved answers:  ' + str(val_unobserved_pre))
+            print('Recall for unobserved answers: ' + str(val_unobserved_re))
+            print('AUC for unobserved answers: ' + str(val_unobserved_auc))
             if summary_writer:
-                summary_writer.add_scalar('Loss val', loss, epoch)
-                summary_writer.add_scalar('Precision val', val_pre, epoch)
-                summary_writer.add_scalar('Recall val', val_re, epoch)
-                summary_writer.add_scalar('AUC val', val_auc, epoch)
+                summary_writer.add_scalar('Loss for all answers on the validation datasets.', loss, epoch)
+                summary_writer.add_scalar('Precision for all answers on the validation datasets.', val_pre, epoch)
+                summary_writer.add_scalar('Recall for all answers on the validation datasets.', val_re, epoch)
+                summary_writer.add_scalar('AUC for all answers on the validation datasets.', val_auc, epoch)
+                summary_writer.add_scalar('Precision for unobserved answers on the validation datasets.', val_unobserved_pre, epoch)
+                summary_writer.add_scalar('Recall for unobserved answers on the validation datasets.', val_unobserved_re, epoch)
+                summary_writer.add_scalar('AUC for unobserved answers on the validation datasets.', val_unobserved_auc, epoch)
 
             if trial and trial.should_prune():
                 raise optuna.exceptions.TrialPruned()

@@ -136,6 +136,10 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     answers = compute_query_answers(path_to_graph, query_string)
     answers = [entity2id[entity[0]] for entity in answers]
     y = create_y_vector(answers, num_nodes)
+    observed_answers = compute_query_answers(path_to_corrupted_graph, query_string)
+    observed_answers = [entity2id[entity[0]] for entity in observed_answers]
+    observed_y = create_y_vector(observed_answers, num_nodes)
+    mask_observed = (observed_y == 0)
     hyperedge_indices, hyperedge_types, num_edge_types_by_shape = create_index_matrices(triples)
     if aug:
         subquery_answers = compute_subquery_answers(path_to_corrupted_graph=path_to_corrupted_graph,
@@ -148,7 +152,9 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
             hyperedge_indices, hyperedge_types, num_edge_types_by_shape = add_tuples_to_index_matrices(
                 subquery_answers, hyperedge_indices, hyperedge_types, num_edge_types_by_shape)
     return {'hyperedge_indices': hyperedge_indices, 'hyperedge_types': hyperedge_types,
-            'num_edge_types_by_shape': num_edge_types_by_shape, 'x': x, 'y': y}, relation2id
+            'num_edge_types_by_shape': num_edge_types_by_shape, 'x': x, 'y': y,
+            'mask_observed': mask_observed}, relation2id
+
 
 # Hyperparameters used in this function can not be tuned with optuna
 def prep_data(data_directories, query_string, aug, subquery_gen_strategy, subquery_depth, max_num_subquery_vars,
