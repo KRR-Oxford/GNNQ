@@ -113,7 +113,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             lr_scheduler.step()
 
             print('Validating!')
-            print('Validation loss :' + loss)
+            print('Validation loss :' + str(loss))
             print('Accuracy for all answers: ' + str(val_acc))
             print('Precision for all answers:  ' + str(val_pre))
             print('Recall for all answers: ' + str(val_re))
