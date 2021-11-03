@@ -4,29 +4,6 @@ import pickle
 import uuid
 from rdflib import Graph, URIRef
 
-
-def save_query_answers(path_to_graph, query_string, path_to_output):
-    g = Graph()
-    g.parse(path_to_graph, format="turtle")
-
-    qres = g.query(query_string)
-
-    answers = []
-    for row in qres:
-        answers.append([str(entity).strip() for entity in row])
-
-    print(len(answers))
-
-    with open(path_to_output, 'wb') as f:
-        pickle.dump(answers, f)
-
-
-def load_answers(path_to_answers):
-    with open(path_to_answers, 'rb') as f:
-        answers = pickle.load(f)
-    return answers
-
-
 # Todo: Change function to randomly delete edges from the graph
 def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
                   path_length_dict_directory=None):
@@ -76,9 +53,6 @@ if __name__ == '__main__':
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
          'http://purl.org/stuff/rev#totalVotes']
-    # rels = ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
-    #         'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
-    #         'http://schema.org/language', 'http://purl.org/stuff/rev#hasReview']
-    directory = 'dummy'
-    path_length_dict = corrupt_graph(rels , directory, 2, 0.15)
+    directory = 'datasets/fb15k237/dataset1'
+    path_length_dict = corrupt_graph(rels, directory, 2, 0.1)
     print('Done')
