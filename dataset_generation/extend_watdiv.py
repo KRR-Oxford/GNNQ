@@ -3,6 +3,7 @@ import os
 import pickle
 import uuid
 from rdflib import Graph, URIRef
+from argparse import ArgumentParser
 
 # Todo: Change function to randomly delete edges from the graph
 def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
@@ -45,6 +46,10 @@ def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
 
 
 if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument('--data_dir', help="File with all the rules", default='../datasets/wsdbm-data-model-v1/dataset1')
+    args = parser.parse_args()
+
     # Remember to use the same path_length_dict for all datasets
     rels = ['http://schema.org/caption', 'http://schema.org/text', 'http://schema.org/contentRating',
          'http://purl.org/stuff/rev#title', 'http://purl.org/stuff/rev#reviewer', 'http://schema.org/actor',
@@ -53,6 +58,5 @@ if __name__ == '__main__':
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
          'http://purl.org/stuff/rev#totalVotes']
-    directory = 'datasets/fb15k237/dataset1'
-    path_length_dict = corrupt_graph(rels, directory, 2, 0.1)
+    path_length_dict = corrupt_graph(rels, args.data_dir, 2, 0.1)
     print('Done')

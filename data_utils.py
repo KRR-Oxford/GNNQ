@@ -127,7 +127,7 @@ def create_y_vector(answers, num_nodes):
     # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
-
+# Key error if answers on complete graph contain an entity that is missing in the incomplete graph
 def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, subquery_gen_strategy, subquery_depth,
                        max_num_subquery_vars,
                        relation2id=None):

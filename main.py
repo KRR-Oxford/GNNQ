@@ -20,7 +20,6 @@ from eval import eval, compute_metrics
 #  - Clean up and comment functions in the data_util.py
 #  - Double check behavior if a subquery does not have answers on training data
 #  - Use a file to specify the head relations in the data generation procedure
-#  - Evaluation of unobserved answers
 #  - Add or max as aggregation function?
 
 
