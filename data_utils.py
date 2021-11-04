@@ -77,7 +77,7 @@ def compute_subquery_answers(graph, query_string, subquery_gen_strategy, subquer
         for row in qres:
             answers.append([str(entity).strip() for entity in row])
         subquery_answers.append(answers)
-        print('({0}/{1}) subqueries answered!'.format(counter, len(subqueries)))
+        print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter, len(subqueries)))
         counter = counter + 1
     return subquery_answers
 
