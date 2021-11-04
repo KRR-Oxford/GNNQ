@@ -5,43 +5,35 @@ from subquery_generation import create_tree, create_subquery_trees, create_subqu
 from rdflib import Graph, URIRef
 
 
-def load_triples(file):
-    triples = []
-    with open(file) as f:
-        file_data = [re.search('(.+?)\s+(.+?)\s+(.+)\s*\.', line) for line in f.read().split('\n')[:-1]]
-    # Save the triplets corresponding to only the known relations
-    for line in file_data:
-        if line:
-            triples.append([line.group(1).strip('""<> '), line.group(2).strip('""<> '), line.group(3).strip('""<> ')])
-    return triples
-
-
-def create_triples_with_ids(triples, relation2id=None):
-    entity2id = {}
-
+def create_triples_with_ids(graph, entity2id=None, relation2id=None):
+    no_entity_ids = False
+    if entity2id is None:
+        entity2id = {}
+        no_entity_ids = True
     no_rel_ids = False
     if relation2id is None:
         relation2id = {}
         no_rel_ids = True
 
+
     ent = 0
     rel = 0
 
     id_triples = []
-    for triple in triples:
-        if triple[0] not in entity2id:
-            entity2id[triple[0]] = ent
+    for s, p, o in graph:
+        if no_entity_ids & (str(s) not in entity2id):
+            entity2id[str(s)] = ent
             ent += 1
-        if triple[2] not in entity2id:
-            entity2id[triple[2]] = ent
+        if no_entity_ids & (str(o) not in entity2id):
+            entity2id[str(o)] = ent
             ent += 1
-        if no_rel_ids & (triple[1] not in relation2id):
-            relation2id[triple[1]] = rel
+        if no_rel_ids & (str(p) not in relation2id):
+            relation2id[str(p)] = rel
             rel += 1
 
-        # Save the triplets corresponding to only the known relations
-        if triple[1] in relation2id:
-            id_triples.append([entity2id[triple[0]], relation2id[triple[1]], entity2id[triple[2]]])
+        # Use only triples with known relations
+        if str(p) in relation2id:
+            id_triples.append([entity2id[str(s)], relation2id[str(p)], entity2id[str(o)]])
 
     id2entity = {v: k for k, v in entity2id.items()}
     id2relation = {v: k for k, v in relation2id.items()}
@@ -61,20 +53,15 @@ def create_index_matrices(triples_with_ids):
     return index_matrices_by_shape, edge_type_by_shape, num_edge_types_by_shape
 
 
-def compute_query_answers(path_to_graph, query_string):
-    g = Graph()
-    g.parse(path_to_graph, format="nt")
-    qres = g.query(query_string)
+def compute_query_answers(graph, query_string):
+    qres = graph.query(query_string)
     answers = []
     for row in qres:
         answers.append([str(entity).strip() for entity in row])
     return answers
 
-
-def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_gen_strategy, subquery_depth,
+def compute_subquery_answers(graph, query_string, subquery_gen_strategy, subquery_depth,
                              max_num_subquery_vars):
-    g = Graph()
-    g.parse(path_to_corrupted_graph, format="nt")
     print('Generating subqueries!')
     root = create_tree(query_string)
     if subquery_gen_strategy == 'greedy':
@@ -85,7 +72,7 @@ def compute_subquery_answers(path_to_corrupted_graph, query_string, subquery_gen
     subquery_answers = []
     counter = 1
     for subquery in subqueries:
-        qres = g.query(subquery)
+        qres = graph.query(subquery)
         answers = []
         for row in qres:
             answers.append([str(entity).strip() for entity in row])
@@ -127,30 +114,33 @@ def create_y_vector(answers, num_nodes):
     # y = scatter.scatter_add(src=torch.ones(num_nodes, dtype=torch.int16), index=torch.tensor(answers), out=torch.zeros(num_nodes, dtype=torch.float16), dim=0)
     return y
 
-# Key error if answers on complete graph contain an entity that is missing in the incomplete graph
 def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, subquery_gen_strategy, subquery_depth,
                        max_num_subquery_vars,
                        relation2id=None):
-    triples = load_triples(path_to_corrupted_graph)
-    triples, entity2id, relation2id, _, _ = create_triples_with_ids(triples, relation2id)
+    g = Graph()
+    g.parse(path_to_graph, format="nt")
+    corrupted_g = Graph()
+    corrupted_g.parse(path_to_corrupted_graph, format="nt")
+    _ , entity2id, relation2id, _, _ = create_triples_with_ids(g, relation2id=relation2id)
+    triples, _ , _ , _, _ = create_triples_with_ids(corrupted_g, entity2id=entity2id, relation2id=relation2id)
     num_nodes = len(entity2id)
     # dummy feature vector dimension
     feat_dim = 1
     x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
-    answers = compute_query_answers(path_to_graph, query_string)
+    answers = compute_query_answers(g, query_string)
     print(path_to_graph + ' contains {} answers for the specified query.'.format(len(answers)))
     answers = [entity2id[entity[0]] for entity in answers]
     y = create_y_vector(answers, num_nodes)
     observed_y = torch.zeros(num_nodes)
-    observed_answers = compute_query_answers(path_to_corrupted_graph, query_string)
-    print(path_to_graph + ' contains {} observed answers and {} unobserved answers for the specified query.'.format(len(observed_answers), len(answers) - len(observed_answers)))
+    observed_answers = compute_query_answers(corrupted_g, query_string)
+    print(path_to_corrupted_graph + ' contains {} observed answers and {} unobserved answers for the specified query.'.format(len(observed_answers), len(answers) - len(observed_answers)))
     if observed_answers:
         observed_answers = [entity2id[entity[0]] for entity in observed_answers]
         observed_y = create_y_vector(observed_answers, num_nodes)
     mask_observed = (observed_y == 0)
     hyperedge_indices, hyperedge_types, num_edge_types_by_shape = create_index_matrices(triples)
     if aug:
-        subquery_answers = compute_subquery_answers(path_to_corrupted_graph=path_to_corrupted_graph,
+        subquery_answers = compute_subquery_answers(graph=corrupted_g,
                                                     query_string=query_string,
                                                     subquery_gen_strategy=subquery_gen_strategy,
                                                     subquery_depth=subquery_depth,
