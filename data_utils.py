@@ -142,8 +142,11 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     answers = [entity2id[entity[0]] for entity in answers]
     y = create_y_vector(answers, num_nodes)
     observed_answers = compute_query_answers(path_to_corrupted_graph, query_string)
-    observed_answers = [entity2id[entity[0]] for entity in observed_answers]
-    observed_y = create_y_vector(observed_answers, num_nodes)
+    if observed_answers:
+        observed_answers = [entity2id[entity[0]] for entity in observed_answers]
+        observed_y = create_y_vector(observed_answers, num_nodes)
+    else:
+        observed_answers = torch.zeros(num_nodes)
     mask_observed = (observed_y == 0)
     hyperedge_indices, hyperedge_types, num_edge_types_by_shape = create_index_matrices(triples)
     if aug:
