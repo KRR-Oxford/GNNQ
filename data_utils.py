@@ -143,6 +143,7 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     y = create_y_vector(answers, num_nodes)
     observed_y = torch.zeros(num_nodes)
     observed_answers = compute_query_answers(path_to_corrupted_graph, query_string)
+    print(path_to_graph + ' contains {} observed answers and {} unobserved answers for the specified query.'.format(len(observed_answers), len(answers) - len(observed_answers)))
     if observed_answers:
         observed_answers = [entity2id[entity[0]] for entity in observed_answers]
         observed_y = create_y_vector(observed_answers, num_nodes)
