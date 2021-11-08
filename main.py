@@ -49,9 +49,6 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
     for param in model.parameters():
         print(type(param.data), param.size())
 
-    if args.pretrained_model:
-        model.load_state_dict(torch.load(args.pretrained_model))
-
     # Adam optimizer already updates the learning rate
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_scheduler_step_size, gamma=0.5)
@@ -147,32 +144,29 @@ def objective(trial, device, train_data, val_data, log_directory, model_director
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Bla bla')
-    parser.add_argument('--query_string', type=str,
-                        default='SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }')
-    parser.add_argument('--train_data', type=str, nargs='+',
-                        default=['datasets/wsdbm-data-model-v1/dataset1/', 'datasets/wsdbm-data-model-v1/dataset2/',
-                                 'datasets/wsdbm-data-model-v1/dataset3/'])
-    parser.add_argument('--val_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset4/'])
-    parser.add_argument('--test_data', type=str, nargs='+', default=['datasets/wsdbm-data-model-v1/dataset5/','datasets/wsdbm-data-model-v1/dataset6/','datasets/wsdbm-data-model-v1/dataset7/'])
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--query_string', type=str)
+    parser.add_argument('--train_data', type=str, nargs='+')
+    parser.add_argument('--val_data', type=str, nargs='+')
+    parser.add_argument('--test_data', type=str, nargs='+')
+    parser.add_argument('--log_dir', type=str, default='runs/')
+    parser.add_argument('--relation2id', type=str, default='')
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
+    parser.add_argument('--hyperparam_tune', action='store_true', default=False)
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
     parser.add_argument('--max_num_subquery_vars', type=int, default=6)
     parser.add_argument('--subquery_depth', type=int, default=2)
-    parser.add_argument('--pretrained_model', type=str, default='')
-    parser.add_argument('--relation2id', type=str, default='')
+    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--val_epochs', type=int, default=10)
+    # Optimize
     parser.add_argument('--base_dim', type=int, default=16)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
-    parser.add_argument('--val_epochs', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--lr', type=int, default=0.00625)
     parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
     parser.add_argument('--negative_slope', type=int, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=2)
-    parser.add_argument('--log_dir', type=str, default='runs/')
-    parser.add_argument('--hyperparam_tune', action='store_true', default=False)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
