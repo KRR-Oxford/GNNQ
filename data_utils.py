@@ -17,12 +17,12 @@ def create_indices_dict(graph, entity2id=None):
     # Corrupted graph contains additional constants! We have to add them to the ID dictionary!
     for s, p, o in graph:
         if (str(s) not in entity2id):
-            entity2id[str(s)] = ent
+            entity2id[str(s).strip()] = ent
             ent += 1
         if (str(o) not in entity2id):
-            entity2id[str(o)] = ent
+            entity2id[str(o).strip()] = ent
             ent += 1
-        indices_dict[str(p).replace('.', '')].append([entity2id[str(s)], entity2id[str(o)]])
+        indices_dict[str(p).replace('.', '')].append([entity2id[str(s).strip()], entity2id[str(o).strip()]])
 
     indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
                     **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
