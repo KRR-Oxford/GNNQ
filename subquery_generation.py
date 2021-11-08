@@ -152,15 +152,13 @@ def create_subqueries(trees):
                 triples.append((Variable(node.parent.name), URIRef(node.name), Variable(node.children[0].name)))
             else:
                 vars.append(Variable(node.name))
-        q = prepareQuery('SELECT distinct ?v0 WHERE { ?v0 ?v1 ?v2}')  # dummy query to create a query object
+        q = prepareQuery('SELECT ?s ?p ?o WHERE { ?s ?p ?o}')  # dummy query to create a query object
         q.algebra['PV'] = vars
         q.algebra['_vars'] = set(vars)
         q.algebra['p']['PV'] = vars
         q.algebra['p']['_vars'] = set(vars)
-        q.algebra['p']['p']['PV'] = vars
+        q.algebra['p']['p']['triples'] = triples  # list of tuples
         q.algebra['p']['p']['_vars'] = set(vars)
-        q.algebra['p']['p']['p']['triples'] = triples  # list of tuples
-        q.algebra['p']['p']['p']['_vars'] = set(vars)
         queries.append(q)
     return queries
 
@@ -168,8 +166,7 @@ def create_subqueries(trees):
 if __name__ == '__main__':
     # g = Graph()
     # g.parse('./GNNQ/wsdbm-data-model-2/dummy/corrupted_graph.nt', format='nt')
-    query = 'SELECT distinct ?v6 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
-    # query = 'SELECT distinct ?v8 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 .}'
+    query = 'SELECT distinct ?v0 WHERE { ?v0  <http://schema.org/caption> ?v1 . ?v0   <http://schema.org/text> ?v2 . ?v0 <http://schema.org/contentRating> ?v3 . ?v0   <http://purl.org/stuff/rev#hasReview> ?v4 .  ?v4 <http://purl.org/stuff/rev#title> ?v5 . ?v4  <http://purl.org/stuff/rev#reviewer> ?v6 . ?v7 <http://schema.org/actor> ?v6 . ?v7 <http://schema.org/language> ?v8  }'
     root = create_tree(query)
     # trees = create_subquery_trees(root,2)
     trees = create_all_connceted_trees(root, 4)
