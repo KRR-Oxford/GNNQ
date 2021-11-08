@@ -1,6 +1,5 @@
 import torch
 import os
-import pickle
 import json
 import argparse
 import torchmetrics
@@ -19,7 +18,7 @@ def compute_metrics(data, model, threshold=0.5):
     unobserved_average_precision = torchmetrics.AveragePrecision()
     model.eval()
     for data_object in data:
-        pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types']).flatten()
+        pred = model(data_object['x'], data_object['indices_dict'], data_object['shapes_dict']).flatten()
         loss = loss + torch.nn.functional.binary_cross_entropy(pred, data_object['y'])
         accuracy(pred, data_object['y'].int())
         precision(pred, data_object['y'].int())
@@ -48,14 +47,11 @@ def compute_metrics(data, model, threshold=0.5):
 
 def eval(test_data_directories, query_string, model_directory, base_dim, num_layers, negative_slope, aug,
          subquery_gen_strategy, subquery_depth, max_num_subquery_vars, device, summary_writer=None):
-    with open(os.path.join(model_directory, 'relation2id.pickle'), 'rb') as f:
-        relation2id = pickle.load(f)
+    test_data = prep_data(data_directories=test_data_directories, query_string=query_string, aug=aug,
+                          subquery_gen_strategy=subquery_gen_strategy, subquery_depth=subquery_depth,
+                          max_num_subquery_vars=max_num_subquery_vars)
 
-    test_data, _ = prep_data(data_directories=test_data_directories, query_string=query_string, aug=aug,
-                             subquery_gen_strategy=subquery_gen_strategy, subquery_depth=subquery_depth,
-                             max_num_subquery_vars=max_num_subquery_vars, relation2id=relation2id)
-
-    model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['num_edge_types_by_shape'], num_layers,
+    model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['shapes_dict'], num_layers,
                  negative_slope)
     model.to(device)
     for param in model.parameters():
