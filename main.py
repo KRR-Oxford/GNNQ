@@ -6,7 +6,6 @@ from optuna.trial import TrialState
 import os
 from datetime import datetime
 import json
-import pickle
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
 from data_utils import prep_data
@@ -43,7 +42,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    model = HGNN(len(train_data[0]['x'][0]), base_dim, train_data[0]['num_edge_types_by_shape'], num_layers,
+    model = HGNN(len(train_data[0]['x'][0]), base_dim, train_data[0]['shapes_dict'], num_layers,
                  negative_slope)
     model.to(device)
     for param in model.parameters():
@@ -67,7 +66,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
         print('Training!')
         for data_object in batch:
-            pred = model(data_object['x'], data_object['hyperedge_indices'], data_object['hyperedge_types'],
+            pred = model(data_object['x'], data_object['indices_dict'], data_object['shapes_dict'],
                          logits=True).flatten()
             # positive_pred = torch.zeros_like(pred)
             # positive_pred[pred >= 0.5] = 1
@@ -122,9 +121,12 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
                 summary_writer.add_scalar('Precision for all answers on the validation datasets.', val_pre, epoch)
                 summary_writer.add_scalar('Recall for all answers on the validation datasets.', val_re, epoch)
                 summary_writer.add_scalar('AUC for all answers on the validation datasets.', val_auc, epoch)
-                summary_writer.add_scalar('Precision for unobserved answers on the validation datasets.', val_unobserved_pre, epoch)
-                summary_writer.add_scalar('Recall for unobserved answers on the validation datasets.', val_unobserved_re, epoch)
-                summary_writer.add_scalar('AUC for unobserved answers on the validation datasets.', val_unobserved_auc, epoch)
+                summary_writer.add_scalar('Precision for unobserved answers on the validation datasets.',
+                                          val_unobserved_pre, epoch)
+                summary_writer.add_scalar('Recall for unobserved answers on the validation datasets.',
+                                          val_unobserved_re, epoch)
+                summary_writer.add_scalar('AUC for unobserved answers on the validation datasets.', val_unobserved_auc,
+                                          epoch)
 
             if trial and trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
@@ -150,7 +152,6 @@ if __name__ == '__main__':
     parser.add_argument('--val_data', type=str, nargs='+')
     parser.add_argument('--test_data', type=str, nargs='+')
     parser.add_argument('--log_dir', type=str, default='runs/')
-    parser.add_argument('--relation2id', type=str, default='')
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--hyperparam_tune', action='store_true', default=False)
@@ -181,26 +182,14 @@ if __name__ == '__main__':
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
 
-    if args.relation2id:
-        with open(args.relations2id, 'rb') as f:
-            relation2id = pickle.load(f)
-        train_data, _ = prep_data(data_directories=args.train_data, query_string=args.query_string, aug=args.aug,
-                                  subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
-                                  max_num_subquery_vars=args.max_num_subquery_vars, relation2id=relation2id)
-        val_data, _ = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
-                                subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
-                                max_num_subquery_vars=args.max_num_subquery_vars, relation2id=relation2id)
-    else:
-        train_data, relation2id = prep_data(data_directories=args.train_data, query_string=args.query_string,
-                                            aug=args.aug,
-                                            subquery_gen_strategy=args.subquery_gen_strategy,
-                                            subquery_depth=args.subquery_depth,
-                                            max_num_subquery_vars=args.max_num_subquery_vars)
-        val_data, _ = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
-                                subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
-                                max_num_subquery_vars=args.max_num_subquery_vars, relation2id=relation2id)
-        with open(os.path.join(model_directory, 'relation2id.pickle'), 'wb') as f:
-            pickle.dump(relation2id, f)
+    train_data = prep_data(data_directories=args.train_data, query_string=args.query_string,
+                           aug=args.aug,
+                           subquery_gen_strategy=args.subquery_gen_strategy,
+                           subquery_depth=args.subquery_depth,
+                           max_num_subquery_vars=args.max_num_subquery_vars)
+    val_data = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
+                         subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
+                         max_num_subquery_vars=args.max_num_subquery_vars)
 
     if not args.hyperparam_tune:
         train(device=device, train_data=train_data, val_data=val_data, log_directory=log_directory,
