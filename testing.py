@@ -9,24 +9,29 @@ class MyTestCase(unittest.TestCase):
         base_dim = 16
         x = torch.ones(base_dim)
         x = torch.diag(x)
-        test_num_edge_types_by_shape = {1: 3, 2: 3, 3: 3}
 
-        test_hyperedge_type = {1: torch.tensor([1, 1, 1, 1, 2, 2]), 2: torch.tensor([0, 0, 2]), 3: torch.tensor([0, 1])}
-        test_hyperedge_index = {1: torch.tensor([[0, 1, 2, 3, 4, 5],
-                                                 [5, 5, 7, 9, 9, 10]], dtype=torch.long),
-                                2: torch.tensor([[0, 1, 3, 4, 6, 7],
-                                                 [2, 2, 2, 2, 8, 8]], dtype=torch.long),
-                                3: torch.tensor([[9, 10, 11, 11, 13, 14],
-                                                 [12, 12, 12, 15, 15, 15]], dtype=torch.long)}
+        shapes_dict = {'1': 1, '2': 1, '3':2, '4':2, '5':3, '6':3 }
+        indices_dict = {'1': torch.tensor([[0, 1, 2, 3],
+                                                 [5, 5, 7, 9]], dtype=torch.long),
+                                '2': torch.tensor([[4, 5],
+                                                 [9, 10]], dtype=torch.long),
+                                '3': torch.tensor([[0, 1, 3, 4],
+                                                 [2, 2, 2, 2]], dtype=torch.long),
+                                '4': torch.tensor([[6, 7],
+                                                   [8, 8]], dtype=torch.long),
+                                '5': torch.tensor([[9, 10, 11],
+                                                 [12, 12, 12]], dtype=torch.long),
+                                '6': torch.tensor([[11, 13, 14],
+                                                 [15, 15, 15]], dtype=torch.long)
+                                }
 
-        layer = HGNNLayer(base_dim, base_dim, test_num_edge_types_by_shape)
+        layer = HGNNLayer(base_dim, base_dim, shapes_dict)
         layer.C.weight.data = torch.diag(torch.ones(base_dim))
         layer.C.bias.data = torch.zeros(base_dim)
-        for shape in test_num_edge_types_by_shape:
-            layer.A[str(shape)].data = torch.diag(torch.ones(base_dim)).repeat(shape, 1).repeat(
-                test_num_edge_types_by_shape[shape], 1, 1)
+        for edge, shape in shapes_dict.items():
+            layer.A[edge].data = torch.diag(torch.ones(base_dim)).repeat(shape, 1)
 
-        out = layer(x, test_hyperedge_index, test_hyperedge_type)
+        out = layer(x, indices_dict, shapes_dict)
         self.assertTrue(torch.equal(out, torch.tensor([[1.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
          0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
         [0.0000, 1.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
