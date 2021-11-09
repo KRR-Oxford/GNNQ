@@ -36,7 +36,7 @@ def create_tree(query_string):
         else:
             node = None
     for pre, fill, node in RenderTree(root):
-        print("%s%s" % (pre, node.name))
+        print("%s%s%s" % (pre, node.name, "_inv" if node.is_inv else ""))
     return root
 
 
