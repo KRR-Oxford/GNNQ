@@ -80,8 +80,7 @@ def create_y_vector(answers, num_nodes):
 
 
 def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, subquery_gen_strategy, subquery_depth,
-                       max_num_subquery_vars,
-                       relation2id=None):
+                       max_num_subquery_vars):
     g = Graph()
     g.parse(path_to_graph, format="nt")
     corrupted_g = Graph()
@@ -120,8 +119,7 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
 
 
 # Hyperparameters used in this function can not be tuned with optuna
-def prep_data(data_directories, query_string, aug, subquery_gen_strategy, subquery_depth, max_num_subquery_vars,
-              relation2id=None):
+def prep_data(data_directories, query_string, aug, subquery_gen_strategy, subquery_depth, max_num_subquery_vars):
     data = []
     for directory in data_directories:
         print('Preparing dataset: ' + directory)
@@ -131,7 +129,6 @@ def prep_data(data_directories, query_string, aug, subquery_gen_strategy, subque
                                          query_string=query_string, aug=aug,
                                          subquery_gen_strategy=subquery_gen_strategy,
                                          subquery_depth=subquery_depth,
-                                         max_num_subquery_vars=max_num_subquery_vars,
-                                         relation2id=relation2id)
+                                         max_num_subquery_vars=max_num_subquery_vars)
         data.append(data_object)
     return data
