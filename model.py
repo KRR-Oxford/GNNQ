@@ -21,9 +21,8 @@ class HGNNLayer(nn.Module):
         # Not sure whether these tensors are automatically move to device
         dest_indices = torch.tensor([], dtype=torch.int16)
         msgs = torch.tensor([], dtype=torch.float16)
-        # Loop through hyperedges with different shapes (num of src nodes)
-        for edge in indices_dict.keys():
-            edge_indices = indices_dict[edge]
+        # Loop through all edge types (hyperedge types).
+        for edge, edge_indices in indices_dict.items():
             i = torch.reshape(edge_indices[1], (-1, shapes_dict[edge]))
             if (i.nelement() != 0):
                 # Compute indices for scatter function
@@ -45,7 +44,7 @@ class HGNNLayer(nn.Module):
                 msgs = torch.cat((msgs, tmp))
         dest_indices = dest_indices.unsqueeze(1).expand_as(msgs)
         # Aggregate
-        agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros(x.shape[0], self.output_dim), dim=0)
+        agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros(x.size()[0], self.output_dim), dim=0)
         # Combine
         h = self.C(x) + agg
         return h
