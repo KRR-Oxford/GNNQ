@@ -51,7 +51,7 @@ def eval(test_data_directories, query_string, model_directory, base_dim, num_lay
                           subquery_gen_strategy=subquery_gen_strategy, subquery_depth=subquery_depth,
                           max_num_subquery_vars=max_num_subquery_vars)
 
-    model = HGNN(len(test_data[0]['x'][0]), base_dim, test_data[0]['shapes_dict'], num_layers,
+    model = HGNN(test_data[0]['x'].size()[1], base_dim, test_data[0]['shapes_dict'], num_layers,
                  negative_slope)
     model.to(device)
     for param in model.parameters():
