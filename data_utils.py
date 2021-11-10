@@ -26,6 +26,7 @@ def create_indices_dict(graph, entity2id=None):
             ent += 1
         indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
+    indices_dict = dict(indices_dict)
     indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
                     **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
 
@@ -85,8 +86,8 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     g.parse(path_to_graph, format="nt")
     corrupted_g = Graph()
     corrupted_g.parse(path_to_corrupted_graph, format="nt")
-    _, entity2id, _ = create_indices_dict(g)
-    indices_dict, entity2id, _ = create_indices_dict(corrupted_g, entity2id=entity2id)
+    # _, entity2id, _ = create_indices_dict(g)
+    indices_dict, entity2id, _ = create_indices_dict(corrupted_g)
     shapes_dict = {k: 1 for k, v in indices_dict.items()}
     num_nodes = len(entity2id)
     # dummy feature vector dimension
