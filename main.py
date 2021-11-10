@@ -15,8 +15,6 @@ from eval import eval, compute_metrics
 # Todo:
 #  - Encode unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states
 #  - Double check that root of query answer is in first position
-#  - Double check that ids for sub-queries are correct
-#  - Clean up and comment functions in the data_util.py
 #  - Double check behavior if a subquery does not have answers on training data
 #  - Use a file to specify the head relations in the data generation procedure
 #  - Add or max as aggregation function?
@@ -42,7 +40,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    model = HGNN(len(train_data[0]['x'][0]), base_dim, train_data[0]['shapes_dict'], num_layers,
+    model = HGNN(train_data[0]['x'].size()[1], base_dim, train_data[0]['shapes_dict'], num_layers,
                  negative_slope)
     model.to(device)
     for param in model.parameters():
