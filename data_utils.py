@@ -33,11 +33,11 @@ def create_indices_dict(graph, entity2id=None):
     return indices_dict, entity2id, id2entity
 
 
-def compute_query_answers(graph, query_string):
+def compute_query_answers(graph, query_string, entity2id):
     qres = graph.query(query_string)
     answers = []
     for row in qres:
-        answers.append([str(entity).strip() for entity in row])
+        answers.append([entity2id[str(entity).strip()] for entity in row])
     return answers
 
 
@@ -92,17 +92,17 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     # dummy feature vector dimension
     feat_dim = 1
     x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
-    answers = compute_query_answers(g, query_string)
+    answers = compute_query_answers(g, query_string, entity2id)
     print(path_to_graph + ' contains {} answers for the specified query.'.format(len(answers)))
-    answers = [entity2id[entity[0]] for entity in answers]
+    answers = [entity[0] for entity in answers]
     y = create_y_vector(answers, num_nodes)
     observed_y = torch.zeros(num_nodes)
-    observed_answers = compute_query_answers(corrupted_g, query_string)
+    observed_answers = compute_query_answers(corrupted_g, query_string, entity2id)
     print(
         path_to_corrupted_graph + ' contains {} observed answers and {} unobserved answers for the specified query.'.format(
             len(observed_answers), len(answers) - len(observed_answers)))
     if observed_answers:
-        observed_answers = [entity2id[entity[0]] for entity in observed_answers]
+        observed_answers = [entity[0] for entity in observed_answers]
         observed_y = create_y_vector(observed_answers, num_nodes)
     mask_observed = (observed_y == 0)
     if aug:
