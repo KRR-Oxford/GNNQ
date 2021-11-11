@@ -26,7 +26,7 @@ def create_indices_dict(graph, entity2id=None):
             ent += 1
         indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
-    indices_dict = dict(indices_dict)
+    # indices_dict = dict(indices_dict)
     indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
                     **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
 

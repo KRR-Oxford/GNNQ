@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch_scatter as scatter
+from collections import defaultdict
 
 
 class HGNNLayer(nn.Module):
@@ -12,9 +13,12 @@ class HGNNLayer(nn.Module):
         self.C = torch.nn.Linear(input_dim, output_dim)
         self.A = torch.nn.ParameterDict({})
         # Shape is the number of src nodes -- we consider edges of the form ((u_0,...,u_{n-1}), R, v)
+        shape_nums = defaultdict(int)
+        for _, shape in shapes_dict.items():
+            shape_nums[shape]+=1
         for edge, shape in shapes_dict.items():
             self.A[edge] = torch.nn.Parameter(torch.zeros(input_dim * shape, output_dim))
-            nn.init.xavier_normal_(self.A[edge])
+            nn.init.normal_(self.A[edge], mean=0, std=torch.sqrt(torch.tensor(2/(shape_nums[shape] * input_dim * shape + shape_nums[shape] * output_dim))))
 
     # h = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
     def forward(self, x, indices_dict, shapes_dict):
