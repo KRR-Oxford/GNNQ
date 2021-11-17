@@ -86,8 +86,8 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
     g.parse(path_to_graph, format="nt")
     corrupted_g = Graph()
     corrupted_g.parse(path_to_corrupted_graph, format="nt")
-    # _, entity2id, _ = create_indices_dict(g)
-    indices_dict, entity2id, _ = create_indices_dict(corrupted_g)
+    _, entity2id, _ = create_indices_dict(g)
+    indices_dict, entity2id, _ = create_indices_dict(corrupted_g, entity2id=entity2id)
     shapes_dict = {k: 1 for k, v in indices_dict.items()}
     num_nodes = len(entity2id)
     # dummy feature vector dimension
