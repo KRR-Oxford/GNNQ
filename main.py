@@ -41,10 +41,10 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             json.dump(args.__dict__, f, indent=2)
 
     model = HGNN(train_data[0]['x'].size()[1], base_dim, train_data[0]['shapes_dict'], num_layers,
-                 negative_slope, args.max_aggr)
+                 negative_slope, args.max_aggr, args.monotonic)
     model.to(device)
-    for param in model.parameters():
-        print(type(param.data), param.size())
+    for name, param in model.named_parameters():
+        print(name, type(param.data), param.size())
 
     # Adam optimizer already updates the learning rate
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -154,6 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_aggr', action='store_true', default=False)
     parser.add_argument('--hyperparam_tune', action='store_true', default=False)
+    parser.add_argument('--monotonic', action='store_true', default=False)
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
     parser.add_argument('--max_num_subquery_vars', type=int, default=6)
     parser.add_argument('--subquery_depth', type=int, default=2)
@@ -197,7 +198,7 @@ if __name__ == '__main__':
         if args.test:
             print('Start testing')
             eval(test_data_directories=args.test_data, query_string=args.query_string, model_directory=model_directory,
-                 base_dim=args.base_dim, num_layers=args.num_layers, negative_slope=args.negative_slope,
+                 base_dim=args.base_dim, num_layers=args.num_layers, monotonic=args.monotonic, max_aggr=args.max_aggr, negative_slope=args.negative_slope,
                  aug=args.aug, subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
                  max_num_subquery_vars=args.max_num_subquery_vars, device=device, summary_writer=writer)
 

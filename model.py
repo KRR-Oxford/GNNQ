@@ -61,17 +61,25 @@ class HGNNLayer(nn.Module):
 
 
 class HGNN(nn.Module):
-    def __init__(self, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01, max_aggr=False):
+    def __init__(self, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01, max_aggr=False, monotonic=False):
         super(HGNN, self).__init__()
         self.num_layers = num_layers
         self.negative_slope = negative_slope
+        self.monotonic= monotonic
         self.msg_layers = nn.ModuleList([])
         self.msg_layers.append(HGNNLayer(feat_dim, base_dim, shapes_dict, max_aggr))
         for i in range(1, self.num_layers - 1):
             self.msg_layers.append(HGNNLayer(base_dim, base_dim, shapes_dict, max_aggr))
         self.msg_layers.append(HGNNLayer(base_dim, 1, shapes_dict, max_aggr))
 
+    def clamp_negative_weights(self):
+        for name, param in self.named_parameters():
+            if 'bias' not in name:
+                param.data.clamp_(0)
+
     def forward(self, x, indices_dict, shapes_dict, logits=False):
+        if self.monotonic:
+            self.clamp_negative_weights()
         # Message passing layers
         for i in range(self.num_layers - 1):
             x = self.msg_layers[i](x, indices_dict, shapes_dict)
