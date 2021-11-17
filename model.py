@@ -5,10 +5,11 @@ from collections import defaultdict
 
 
 class HGNNLayer(nn.Module):
-    def __init__(self, input_dim, output_dim, shapes_dict):
+    def __init__(self, input_dim, output_dim, shapes_dict, max_aggr):
         super(HGNNLayer, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.max_aggr = max_aggr
         # Includes bias
         self.C = torch.nn.Linear(input_dim, output_dim)
         self.A = torch.nn.ParameterDict({})
@@ -48,22 +49,27 @@ class HGNNLayer(nn.Module):
                 msgs = torch.cat((msgs, tmp))
         dest_indices = dest_indices.unsqueeze(1).expand_as(msgs)
         # Aggregate
-        agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros(x.size()[0], self.output_dim), dim=0)
+        if self.max_aggr:
+            agg, _ = scatter.scatter_max(src=msgs, index=dest_indices, out=torch.zeros(x.size()[0], self.output_dim),
+                                         dim=0)
+        else:
+            agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros(x.size()[0], self.output_dim),
+                                      dim=0)
         # Combine
         h = self.C(x) + agg
         return h
 
 
 class HGNN(nn.Module):
-    def __init__(self, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01):
+    def __init__(self, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01, max_aggr=False):
         super(HGNN, self).__init__()
         self.num_layers = num_layers
         self.negative_slope = negative_slope
         self.msg_layers = nn.ModuleList([])
-        self.msg_layers.append(HGNNLayer(feat_dim, base_dim, shapes_dict))
+        self.msg_layers.append(HGNNLayer(feat_dim, base_dim, shapes_dict, max_aggr))
         for i in range(1, self.num_layers - 1):
-            self.msg_layers.append(HGNNLayer(base_dim, base_dim, shapes_dict))
-        self.msg_layers.append(HGNNLayer(base_dim, 1, shapes_dict))
+            self.msg_layers.append(HGNNLayer(base_dim, base_dim, shapes_dict, max_aggr))
+        self.msg_layers.append(HGNNLayer(base_dim, 1, shapes_dict, max_aggr))
 
     def forward(self, x, indices_dict, shapes_dict, logits=False):
         # Message passing layers

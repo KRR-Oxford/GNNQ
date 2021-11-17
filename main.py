@@ -41,7 +41,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
             json.dump(args.__dict__, f, indent=2)
 
     model = HGNN(train_data[0]['x'].size()[1], base_dim, train_data[0]['shapes_dict'], num_layers,
-                 negative_slope)
+                 negative_slope, args.max_aggr)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
@@ -152,6 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--log_dir', type=str, default='runs/')
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
+    parser.add_argument('--max_aggr', action='store_true', default=False)
     parser.add_argument('--hyperparam_tune', action='store_true', default=False)
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
     parser.add_argument('--max_num_subquery_vars', type=int, default=6)
