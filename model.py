@@ -6,7 +6,7 @@ from collections import defaultdict
 
 class HGNNLayer(nn.Module):
     def __init__(self, input_dim, output_dim, shapes_dict, max_aggr):
-        super(HGNNLayer, self).__init__()
+        super().__init__()
         self.shapes_dict = shapes_dict
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -64,7 +64,7 @@ class HGNNLayer(nn.Module):
 
 class HGNN(nn.Module):
     def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01, max_aggr=False, monotonic=False, subqueries=None):
-        super(HGNN, self).__init__()
+        super().__init__()
         self.query_string = query_string
         self.subqueries = subqueries
         self.num_layers = num_layers
