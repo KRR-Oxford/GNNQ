@@ -7,6 +7,7 @@ from collections import defaultdict
 class HGNNLayer(nn.Module):
     def __init__(self, input_dim, output_dim, shapes_dict, max_aggr):
         super(HGNNLayer, self).__init__()
+        self.shapes_dict = shapes_dict
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.max_aggr = max_aggr
@@ -22,20 +23,21 @@ class HGNNLayer(nn.Module):
             nn.init.normal_(self.A[edge], mean=0, std=torch.sqrt(torch.tensor(2/(shape_nums[shape] * input_dim * shape + shape_nums[shape] * output_dim))))
 
     # h = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
-    def forward(self, x, indices_dict, shapes_dict):
+    def forward(self, x, indices_dict):
         # Not sure whether these tensors are automatically move to device
         dest_indices = torch.tensor([], dtype=torch.int16)
         msgs = torch.tensor([], dtype=torch.float16)
         # Loop through all edge types (hyperedge types).
+        # It would make more sense to loop thorugh shape dict and check whether edge type is an indice dict
         for edge, edge_indices in indices_dict.items():
             if edge_indices.numel():
-                i = torch.reshape(edge_indices[1], (-1, shapes_dict[edge]))
+                i = torch.reshape(edge_indices[1], (-1, self.shapes_dict[edge]))
                 # Compute indices for scatter function
                 i = i[:, 0]
                 dest_indices = torch.cat((dest_indices, i), dim=0)
                 # Compute src for scatter function
                 tmp = x[edge_indices[0]]
-                s = tmp.size()[1] * shapes_dict[edge]
+                s = tmp.size()[1] * self.shapes_dict[edge]
                 # Concat feature vectors of src nodes for hyperedges
                 tmp = torch.reshape(tmp, (-1, s))
                 weights = self.A[edge]
@@ -61,8 +63,10 @@ class HGNNLayer(nn.Module):
 
 
 class HGNN(nn.Module):
-    def __init__(self, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01, max_aggr=False, monotonic=False):
+    def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01, max_aggr=False, monotonic=False, subqueries=None):
         super(HGNN, self).__init__()
+        self.query_string = query_string
+        self.subqueries = subqueries
         self.num_layers = num_layers
         self.negative_slope = negative_slope
         self.monotonic= monotonic
@@ -77,13 +81,13 @@ class HGNN(nn.Module):
             if 'bias' not in name:
                 param.data.clamp_(0)
 
-    def forward(self, x, indices_dict, shapes_dict, logits=False):
+    def forward(self, x, indices_dict, logits=False):
         if self.monotonic:
             self.clamp_negative_weights()
         # Message passing layers
         for i in range(self.num_layers - 1):
-            x = self.msg_layers[i](x, indices_dict, shapes_dict)
+            x = self.msg_layers[i](x, indices_dict)
             x = nn.functional.leaky_relu(x, negative_slope=self.negative_slope)
-        x = self.msg_layers[self.num_layers - 1](x, indices_dict, shapes_dict)
+        x = self.msg_layers[self.num_layers - 1](x, indices_dict)
         if logits: return x - 10
         return torch.sigmoid(x - 10)

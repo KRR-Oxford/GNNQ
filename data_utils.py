@@ -41,18 +41,35 @@ def compute_query_answers(graph, query_string, entity2id):
         answers.append([entity2id[str(entity).strip()] for entity in row])
     return answers
 
-
-def compute_subquery_answers(graph, query_string, subquery_gen_strategy, subquery_depth,
-                             max_num_subquery_vars, entity2id):
+def generate_subqueries(path_to_graph, query_string, subquery_gen_strategy, subquery_depth,
+                             max_num_subquery_vars):
     print('Generating subqueries!')
+    g = Graph()
+    g.parse(os.path.join(path_to_graph,'corrupted_graph.nt'), format="nt")
     root = create_tree(query_string)
     if subquery_gen_strategy == 'greedy':
         trees = create_subquery_trees(root, subquery_depth)
     else:
         trees = create_all_connceted_trees(root, max_num_subquery_vars)
-    subqueries = create_subqueries(trees)
-    subquery_answers = {}
+    candidate_queries = create_subqueries(trees)
+    subqueries = []
     subquery_shape = {}
+    counter = 1
+    for subquery in candidate_queries:
+        qres = g.query(subquery)
+        answers = []
+        for row in qres:
+            answers.append([entity for entity in row])
+        key = str([str(var) for var in subquery.algebra['PV']])
+        print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter, len(candidate_queries)))
+        counter = counter + 1
+        if answers:
+            subqueries.append(subquery)
+            subquery_shape[key] = len(answers[0]) - 1
+    return subqueries, subquery_shape
+
+def compute_subquery_answers(graph, entity2id, subqueries):
+    subquery_answers = {}
     counter = 1
     for subquery in subqueries:
         qres = graph.query(subquery)
@@ -62,17 +79,15 @@ def compute_subquery_answers(graph, query_string, subquery_gen_strategy, subquer
         answers = torch.tensor(answers)
         if not answers.numel():
             subquery_answers[key] = torch.tensor([])
-            subquery_shape[key] = 0
             continue
         shape = answers.size()[1] - 1
         key = str([str(var) for var in subquery.algebra['PV']])
         subquery_answers[key] = torch.stack(
             (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
-        subquery_shape[key] = shape
         print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter,
                                                                                     len(subqueries)))
         counter = counter + 1
-    return subquery_answers, subquery_shape
+    return subquery_answers
 
 
 def create_y_vector(answers, num_nodes):
@@ -84,15 +99,13 @@ def create_y_vector(answers, num_nodes):
     return y
 
 
-def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, subquery_gen_strategy, subquery_depth,
-                       max_num_subquery_vars):
+def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug, subqueries):
     g = Graph()
     g.parse(path_to_graph, format="nt")
     corrupted_g = Graph()
     corrupted_g.parse(path_to_corrupted_graph, format="nt")
     _, entity2id, _ = create_indices_dict(g)
     indices_dict, entity2id, _ = create_indices_dict(corrupted_g, entity2id=entity2id)
-    shapes_dict = {k: 1 for k, v in indices_dict.items()}
     num_nodes = len(entity2id)
     # dummy feature vector dimension
     feat_dim = 1
@@ -111,29 +124,18 @@ def create_data_object(path_to_graph, path_to_corrupted_graph, query_string, aug
         observed_y = create_y_vector(observed_answers, num_nodes)
     mask_observed = (observed_y == 0)
     if aug:
-        hyper_indices_dict, hyper_shapes = compute_subquery_answers(graph=corrupted_g,
-                                                                    query_string=query_string,
-                                                                    subquery_gen_strategy=subquery_gen_strategy,
-                                                                    subquery_depth=subquery_depth,
-                                                                    max_num_subquery_vars=max_num_subquery_vars,
-                                                                    entity2id=entity2id)
+        hyper_indices_dict = compute_subquery_answers(graph=corrupted_g, entity2id=entity2id, subqueries=subqueries)
         indices_dict = {**indices_dict, **hyper_indices_dict}
-        shapes_dict = {**shapes_dict, **hyper_shapes}
-    return {'indices_dict': indices_dict, 'shapes_dict': shapes_dict, 'x': x, 'y': y,
-            'mask_observed': mask_observed}
+    return {'indices_dict': indices_dict, 'x': x, 'y': y, 'mask_observed': mask_observed}
 
 
 # Hyperparameters used in this function can not be tuned with optuna
-def prep_data(data_directories, query_string, aug, subquery_gen_strategy, subquery_depth, max_num_subquery_vars):
+def prep_data(data_directories, query_string, aug, subqueries=None, subquery_shape=None):
     data = []
     for directory in data_directories:
         print('Preparing dataset: ' + directory)
         data_object = create_data_object(path_to_graph=os.path.join(directory, 'graph.nt'),
-                                         path_to_corrupted_graph=os.path.join(directory,
-                                                                              'corrupted_graph.nt'),
-                                         query_string=query_string, aug=aug,
-                                         subquery_gen_strategy=subquery_gen_strategy,
-                                         subquery_depth=subquery_depth,
-                                         max_num_subquery_vars=max_num_subquery_vars)
+                                         path_to_corrupted_graph=os.path.join(directory,'corrupted_graph.nt'),
+                                         query_string=query_string, aug=aug,subqueries=subqueries)
         data.append(data_object)
     return data

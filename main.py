@@ -4,11 +4,12 @@ import torchmetrics
 import optuna
 from optuna.trial import TrialState
 import os
+import pickle
 from datetime import datetime
 import json
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
-from data_utils import prep_data
+from data_utils import generate_subqueries, prep_data
 from eval import eval, compute_metrics
 
 
@@ -20,7 +21,8 @@ from eval import eval, compute_metrics
 #  - Add or max as aggregation function?
 
 
-def train(device, train_data, val_data, log_directory, model_directory, args, summary_writer=None, trial=None):
+def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
+          summary_writer=None, trial=None):
     base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
@@ -40,8 +42,8 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    model = HGNN(train_data[0]['x'].size()[1], base_dim, train_data[0]['shapes_dict'], num_layers,
-                 negative_slope, args.max_aggr, args.monotonic)
+    model = HGNN(args.query_string, feat_dim, base_dim, shapes_dict, num_layers,
+                 negative_slope, args.max_aggr, args.monotonic, subqueries)
     model.to(device)
     for name, param in model.named_parameters():
         print(name, type(param.data), param.size())
@@ -64,8 +66,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
         print('Training!')
         for data_object in batch:
-            pred = model(data_object['x'], data_object['indices_dict'], data_object['shapes_dict'],
-                         logits=True).flatten()
+            pred = model(data_object['x'], data_object['indices_dict'], logits=True).flatten()
             # positive_pred = torch.zeros_like(pred)
             # positive_pred[pred >= 0.5] = 1
             # false_positive_pred = torch.clamp(positive_pred - data_object['y'], min=0)
@@ -134,7 +135,7 @@ def train(device, train_data, val_data, log_directory, model_directory, args, su
     else:
         torch.save(model.state_dict(), os.path.join(model_directory, 'model.pt'))
     # Why does optuna require to a return value?
-    return loss
+    return model, loss
 
 
 def objective(trial, device, train_data, val_data, log_directory, model_directory, args):
@@ -182,25 +183,34 @@ if __name__ == '__main__':
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
 
-    train_data = prep_data(data_directories=args.train_data, query_string=args.query_string,
-                           aug=args.aug,
-                           subquery_gen_strategy=args.subquery_gen_strategy,
-                           subquery_depth=args.subquery_depth,
-                           max_num_subquery_vars=args.max_num_subquery_vars)
-    val_data = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
-                         subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
-                         max_num_subquery_vars=args.max_num_subquery_vars)
+    if args.aug:
+        subqueries, subquery_shape = generate_subqueries(args.train_data[0], query_string=args.query_string,
+                                                         subquery_gen_strategy=args.subquery_gen_strategy,
+                                                         subquery_depth=args.subquery_depth,
+                                                         max_num_subquery_vars=args.max_num_subquery_vars)
+
+        train_data = prep_data(data_directories=args.train_data, query_string=args.query_string, aug=args.aug,
+                               subqueries=subqueries)
+        val_data = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
+                             subqueries=subqueries)
+
+        shapes_dict = shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
+        shapes_dict = {**shapes_dict, **subquery_shape}
+    else:
+        train_data = prep_data(data_directories=args.train_data, query_string=args.query_string, aug=args.aug)
+        val_data = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug)
+
+        shapes_dict = shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
 
     if not args.hyperparam_tune:
-        train(device=device, train_data=train_data, val_data=val_data, log_directory=log_directory,
-              model_directory=model_directory, args=args, summary_writer=writer)
+        model, _ = train(device=device, feat_dim=1, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
+              log_directory=log_directory,
+              model_directory=model_directory, subqueries=subqueries, args=args, summary_writer=writer)
 
         if args.test:
             print('Start testing')
-            eval(test_data_directories=args.test_data, query_string=args.query_string, model_directory=model_directory,
-                 base_dim=args.base_dim, num_layers=args.num_layers, monotonic=args.monotonic, max_aggr=args.max_aggr, negative_slope=args.negative_slope,
-                 aug=args.aug, subquery_gen_strategy=args.subquery_gen_strategy, subquery_depth=args.subquery_depth,
-                 max_num_subquery_vars=args.max_num_subquery_vars, device=device, summary_writer=writer)
+            eval(test_data_directories=args.test_data, model=model,
+                 aug=args.aug, device=device, summary_writer=writer)
 
     else:
         study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
