@@ -60,12 +60,12 @@ def generate_subqueries(path_to_graph, query_string, subquery_gen_strategy, subq
         answers = []
         for row in qres:
             answers.append([entity for entity in row])
-        key = str([str(var) for var in subquery.algebra['PV']])
         print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter, len(candidate_queries)))
         counter = counter + 1
         if answers:
             subqueries.append(subquery)
-            subquery_shape[key] = len(answers[0]) - 1
+            subquery = subquery.replace(".", "")
+            subquery_shape[subquery] = len(answers[0]) - 1
     return subqueries, subquery_shape
 
 def compute_subquery_answers(graph, entity2id, subqueries):
@@ -76,13 +76,13 @@ def compute_subquery_answers(graph, entity2id, subqueries):
         answers = []
         for row in qres:
             answers.append([entity2id[str(entity).strip()] for entity in row])
-        answers = torch.tensor(answers)
-        if not answers.numel():
-            subquery_answers[key] = torch.tensor([])
+        if not answers:
+            subquery_answers[subquery] = torch.tensor([])
             continue
+        subquery = subquery.replace(".", "")
+        answers = torch.tensor(answers)
         shape = answers.size()[1] - 1
-        key = str([str(var) for var in subquery.algebra['PV']])
-        subquery_answers[key] = torch.stack(
+        subquery_answers[subquery] = torch.stack(
             (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
         print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter,
                                                                                     len(subqueries)))

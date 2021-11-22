@@ -152,14 +152,14 @@ def create_subqueries(trees):
                 triples.append((Variable(node.parent.name), URIRef(node.name), Variable(node.children[0].name)))
             else:
                 vars.append(Variable(node.name))
-        q = prepareQuery('SELECT ?s ?p ?o WHERE { ?s ?p ?o}')  # dummy query to create a query object
-        q.algebra['PV'] = vars
-        q.algebra['_vars'] = set(vars)
-        q.algebra['p']['PV'] = vars
-        q.algebra['p']['_vars'] = set(vars)
-        q.algebra['p']['p']['triples'] = triples  # list of tuples
-        q.algebra['p']['p']['_vars'] = set(vars)
-        queries.append(q)
+        answer_vars = ''
+        for var in vars:
+            answer_vars += '?' + str(var) + ' '
+        bgp = ''
+        for triple in triples:
+            bgp += '?' + str(triple[0]) + ' <' + str(triple[1]) + '> ' + '?' + str(triple[2]) + ' . '
+        subquery_string = 'SELECT ' + answer_vars + ' WHERE { ' + bgp + ' }'
+        queries.append(subquery_string)
     return queries
 
 

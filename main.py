@@ -1,10 +1,11 @@
+import pickle
+
 import torch
 import argparse
 import torchmetrics
 import optuna
 from optuna.trial import TrialState
 import os
-import pickle
 from datetime import datetime
 import json
 from torch.utils.tensorboard import SummaryWriter
@@ -131,11 +132,11 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
                 raise optuna.exceptions.TrialPruned()
 
     if trial:
-        torch.save(model.state_dict(), os.path.join(model_directory, 'trial{}.pt'.format(trial.number)))
+        torch.save(model, os.path.join(model_directory, 'trial{}.pt'.format(trial.number)))
     else:
-        torch.save(model.state_dict(), os.path.join(model_directory, 'model.pt'))
+        torch.save(model, os.path.join(model_directory, 'model.pt'))
     # Why does optuna require to a return value?
-    return model, loss
+    return loss
 
 
 def objective(trial, device, train_data, val_data, log_directory, model_directory, args):
@@ -197,20 +198,21 @@ if __name__ == '__main__':
         shapes_dict = shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
         shapes_dict = {**shapes_dict, **subquery_shape}
     else:
+        subqueries = None
         train_data = prep_data(data_directories=args.train_data, query_string=args.query_string, aug=args.aug)
         val_data = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug)
 
-        shapes_dict = shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
+        shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
 
     if not args.hyperparam_tune:
-        model, _ = train(device=device, feat_dim=1, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
-              log_directory=log_directory,
-              model_directory=model_directory, subqueries=subqueries, args=args, summary_writer=writer)
+        train(device=device, feat_dim=1, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
+              log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
+              summary_writer=writer)
 
         if args.test:
             print('Start testing')
-            eval(test_data_directories=args.test_data, model=model,
-                 aug=args.aug, device=device, summary_writer=writer)
+            eval(test_data_directories=args.test_data, model_directory=model_directory, aug=args.aug, device=device,
+                 summary_writer=writer)
 
     else:
         study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(

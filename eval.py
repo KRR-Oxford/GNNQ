@@ -4,7 +4,6 @@ import json
 import argparse
 import torchmetrics
 from data_utils import prep_data
-from model import HGNN
 
 
 def compute_metrics(data, model, threshold=0.5):
@@ -44,10 +43,8 @@ def compute_metrics(data, model, threshold=0.5):
     unobserved_average_precision.reset()
     return loss, acc, pre, re, auc, unobserved_pre, unobserved_re, unobserved_auc
 
-# Find a way to load model object from file
-def eval(test_data_directories, model, aug, device, summary_writer=None):
-    # model = HGNN(test_data[0]['x'].size()[1], base_dim, test_data[0]['shapes_dict'], num_layers,
-    #              negative_slope, max_aggr, monotonic)
+def eval(test_data_directories, model_directory, aug, device, summary_writer=None):
+    model = torch.load(os.path.join(model_directory, 'model.pt'))
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
@@ -86,9 +83,5 @@ if __name__ == '__main__':
     with open(os.path.join(args.log_directory, 'config.txt'), 'r') as f:
         run_args = json.load(f)
 
-    eval(test_data_directories=args.test_data, query_string=run_args['query_string'],
-         model_directory=os.path.join(args.log_directory, 'models'), base_dim=run_args['base_dim'],
-         num_layers=run_args['num_layers'], max_aggr=run_args['max_aggr'], monotonic=run_args['monotonic'],
-         negative_slope=run_args['negative_slope'], aug=run_args['aug'],
-         subquery_gen_strategy=run_args['subquery_gen_strategy'], subquery_depth=run_args['subquery_depth'],
-         max_num_subquery_vars=run_args['max_num_subquery_vars'], device=device)
+    eval(test_data_directories=args.test_data, model_directory=os.path.join(args.log_directory, 'models'),
+         aug=run_args['aug'], device=device)
