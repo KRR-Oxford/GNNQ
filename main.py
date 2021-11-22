@@ -164,9 +164,9 @@ if __name__ == '__main__':
     parser.add_argument('--base_dim', type=int, default=16)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
-    parser.add_argument('--lr', type=int, default=0.00625)
+    parser.add_argument('--lr', type=float, default=0.00625)
     parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
-    parser.add_argument('--negative_slope', type=int, default=0.1)
+    parser.add_argument('--negative_slope', type=float, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=2)
     args = parser.parse_args()
 

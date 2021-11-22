@@ -28,8 +28,8 @@ class HGNNLayer(nn.Module):
         msgs = torch.tensor([], dtype=torch.float16)
         # Loop through all edge types (hyperedge types).
         for edge, edge_indices in indices_dict.items():
-            i = torch.reshape(edge_indices[1], (-1, shapes_dict[edge]))
-            if (i.nelement() != 0):
+            if edge_indices.numel():
+                i = torch.reshape(edge_indices[1], (-1, shapes_dict[edge]))
                 # Compute indices for scatter function
                 i = i[:, 0]
                 dest_indices = torch.cat((dest_indices, i), dim=0)
@@ -85,5 +85,5 @@ class HGNN(nn.Module):
             x = self.msg_layers[i](x, indices_dict, shapes_dict)
             x = nn.functional.leaky_relu(x, negative_slope=self.negative_slope)
         x = self.msg_layers[self.num_layers - 1](x, indices_dict, shapes_dict)
-        if logits: return x
-        return torch.sigmoid(x)
+        if logits: return x - 10
+        return torch.sigmoid(x - 10)

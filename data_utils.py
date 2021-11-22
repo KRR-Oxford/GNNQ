@@ -60,6 +60,10 @@ def compute_subquery_answers(graph, query_string, subquery_gen_strategy, subquer
         for row in qres:
             answers.append([entity2id[str(entity).strip()] for entity in row])
         answers = torch.tensor(answers)
+        if not answers.numel():
+            subquery_answers[key] = torch.tensor([])
+            subquery_shape[key] = 0
+            continue
         shape = answers.size()[1] - 1
         key = str([str(var) for var in subquery.algebra['PV']])
         subquery_answers[key] = torch.stack(
