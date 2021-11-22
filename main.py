@@ -195,7 +195,7 @@ if __name__ == '__main__':
         val_data = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug,
                              subqueries=subqueries)
 
-        shapes_dict = shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
+        shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
         shapes_dict = {**shapes_dict, **subquery_shape}
     else:
         subqueries = None
