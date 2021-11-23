@@ -1,4 +1,5 @@
 import os
+import re
 import torch
 from collections import defaultdict
 from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
@@ -57,15 +58,13 @@ def generate_subqueries(path_to_graph, query_string, subquery_gen_strategy, subq
     counter = 1
     for subquery in candidate_queries:
         qres = g.query(subquery)
-        answers = []
-        for row in qres:
-            answers.append([entity for entity in row])
-        print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter, len(candidate_queries)))
+        print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(qres), counter, len(candidate_queries)))
         counter = counter + 1
-        if answers:
+        if len(qres):
             subqueries.append(subquery)
             subquery = subquery.replace(".", "")
-            subquery_shape[subquery] = len(answers[0]) - 1
+            shape = len(re.search("SELECT (.*) WHERE", subquery)[1].split()) - 1
+            subquery_shape[subquery] = shape
     return subqueries, subquery_shape
 
 def compute_subquery_answers(graph, entity2id, subqueries):
