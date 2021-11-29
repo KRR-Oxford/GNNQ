@@ -44,9 +44,10 @@ class HGNNLayer(nn.Module):
                 # Linear transformation of messages
                 tmp = tmp.mm(weights)
                 # Normalisation
-                _, revers_i, counts = torch.unique(i, return_inverse=True, return_counts=True)
-                norm = 1 / counts[revers_i]
-                tmp = norm.unsqueeze(1) * tmp
+                if not self.max_aggr:
+                    _, revers_i, counts = torch.unique(i, return_inverse=True, return_counts=True)
+                    norm = 1 / counts[revers_i]
+                    tmp = norm.unsqueeze(1) * tmp
                 # Tensor with all messages
                 msgs = torch.cat((msgs, tmp))
         dest_indices = dest_indices.unsqueeze(1).expand_as(msgs)
@@ -89,5 +90,8 @@ class HGNN(nn.Module):
             x = self.msg_layers[i](x, indices_dict)
             x = nn.functional.leaky_relu(x, negative_slope=self.negative_slope)
         x = self.msg_layers[self.num_layers - 1](x, indices_dict)
-        if logits: return x - 10
-        return torch.sigmoid(x - 10)
+        # Dirty hack to get stronger gradients for monotonic models
+        if self.monotonic:
+            x = x - 10
+        if logits: return x
+        return torch.sigmoid(x)
