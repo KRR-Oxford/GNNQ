@@ -75,17 +75,17 @@ def compute_subquery_answers(graph, entity2id, subqueries):
         answers = []
         for row in qres:
             answers.append([entity2id[str(entity).strip()] for entity in row])
+        print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter,
+                                                                                    len(subqueries)))
+        counter = counter + 1
+        subquery = subquery.replace(".", "")
         if not answers:
             subquery_answers[subquery] = torch.tensor([])
             continue
-        subquery = subquery.replace(".", "")
         answers = torch.tensor(answers)
         shape = answers.size()[1] - 1
         subquery_answers[subquery] = torch.stack(
             (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
-        print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter,
-                                                                                    len(subqueries)))
-        counter = counter + 1
     return subquery_answers
 
 
