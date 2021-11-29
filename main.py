@@ -1,5 +1,3 @@
-import pickle
-
 import torch
 import argparse
 import torchmetrics
@@ -16,10 +14,7 @@ from eval import eval, compute_metrics
 
 # Todo:
 #  - Encode unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states
-#  - Double check that root of query answer is in first position
-#  - Double check behavior if a subquery does not have answers on training data
 #  - Use a file to specify the head relations in the data generation procedure
-#  - Add or max as aggregation function?
 
 
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
