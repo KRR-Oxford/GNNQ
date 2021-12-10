@@ -17,10 +17,11 @@ class HGNNLayer(nn.Module):
         # Shape is the number of src nodes -- we consider edges of the form ((u_0,...,u_{n-1}), R, v)
         shape_nums = defaultdict(int)
         for _, shape in shapes_dict.items():
-            shape_nums[shape]+=1
+            shape_nums[shape] += 1
         for edge, shape in shapes_dict.items():
             self.A[edge] = torch.nn.Parameter(torch.zeros(input_dim * shape, output_dim))
-            nn.init.normal_(self.A[edge], mean=0, std=torch.sqrt(torch.tensor(2/(shape_nums[shape] * input_dim * shape + shape_nums[shape] * output_dim))))
+            nn.init.normal_(self.A[edge], mean=0, std=torch.sqrt(
+                torch.tensor(2 / (shape_nums[shape] * input_dim * shape + shape_nums[shape] * output_dim))))
 
     # h = x_iC + b + SUM_shape SUM_type SUM_neighbours x_jA_shape,type
     def forward(self, x, indices_dict):
@@ -64,13 +65,16 @@ class HGNNLayer(nn.Module):
 
 
 class HGNN(nn.Module):
-    def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.01, max_aggr=False, monotonic=False, subqueries=None):
+    def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.1,
+                 hyperedge_dropout_prob=0.1, max_aggr=False, monotonic=False, subqueries=None):
         super().__init__()
+        self.shapes_dict = shapes_dict
+        self.hyperedge_dropout_prob = hyperedge_dropout_prob
         self.query_string = query_string
         self.subqueries = subqueries
         self.num_layers = num_layers
         self.negative_slope = negative_slope
-        self.monotonic= monotonic
+        self.monotonic = monotonic
         self.msg_layers = nn.ModuleList([])
         self.msg_layers.append(HGNNLayer(feat_dim, base_dim, shapes_dict, max_aggr))
         for i in range(1, self.num_layers - 1):
@@ -85,13 +89,18 @@ class HGNN(nn.Module):
     def forward(self, x, indices_dict, logits=False):
         if self.monotonic:
             self.clamp_negative_weights()
+        # Randomly leave out some hyper-edges -- at the moment I leave out all edges for the same edge type at ones
+        if self.training and self.hyperedge_dropout_prob:
+            dict = {}
+            for k, v in indices_dict.items():
+                if self.shapes_dict[k] == 1 or torch.bernoulli(p=1 - self.hyperedge_dropout_prob,
+                                                               input=torch.tensor([0])).item() == 1:
+                    dict[k] = v
+            indices_dict = dict
         # Message passing layers
         for i in range(self.num_layers - 1):
             x = self.msg_layers[i](x, indices_dict)
             x = nn.functional.leaky_relu(x, negative_slope=self.negative_slope)
         x = self.msg_layers[self.num_layers - 1](x, indices_dict)
-        # Dirty hack to get stronger gradients for monotonic models
-        if self.monotonic:
-            x = x - 10
         if logits: return x
         return torch.sigmoid(x)

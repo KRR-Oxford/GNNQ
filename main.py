@@ -16,7 +16,6 @@ from eval import eval, compute_metrics
 #  - Encode unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states
 #  - Use a file to specify the head relations in the data generation procedure
 
-
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
           summary_writer=None, trial=None):
     base_dim = args.base_dim
@@ -26,20 +25,25 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     lr_scheduler_step_size = args.lr_scheduler_step_size
     negative_slope = args.negative_slope
     positive_sample_weight = args.positive_sample_weight
+    hyperedge_dropout_prob = args.hyperedge_dropout_prob
 
     if trial:
         base_dim = trial.suggest_int('base_dim', 8, 32)
-        num_layers = trial.suggest_int('num_layers', 1, 4)
+        num_layers = trial.suggest_int('num_layers', 2, 6)
         learning_rate = trial.suggest_float("lr", 0.001, 0.1, step=0.001)
         lr_scheduler_step_size = trial.suggest_int('lr_scheduler_step_size', 1, 10)
         positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 20)
         negative_slope = trial.suggest_float('negative_slope', 0.01, 0.2, step=0.01)
+        hyperedge_dropout_prob = trial.suggest_float('negative_slope', 0.1, 0.3, step=0.05)
     else:
         with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    model = HGNN(args.query_string, feat_dim, base_dim, shapes_dict, num_layers,
-                 negative_slope, args.max_aggr, args.monotonic, subqueries)
+    model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=base_dim, shapes_dict=shapes_dict,
+                 num_layers=num_layers,
+                 negative_slope=negative_slope, hyperedge_dropout_prob=hyperedge_dropout_prob, max_aggr=args.max_aggr,
+                 monotonic=args.monotonic, subqueries=subqueries)
+
     model.to(device)
     for name, param in model.named_parameters():
         print(name, type(param.data), param.size())
@@ -134,8 +138,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     return loss
 
 
-def objective(trial, device, train_data, val_data, log_directory, model_directory, args):
-    loss = train(device=device, train_data=train_data, val_data=val_data, log_directory=log_directory,
+def objective(trial, device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args):
+    loss = train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
+                 log_directory=log_directory,
                  model_directory=model_directory, args=args, summary_writer=None, trial=trial)
     return loss
 
@@ -164,6 +169,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.00625)
     parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
     parser.add_argument('--negative_slope', type=float, default=0.1)
+    parser.add_argument('--hyperedge_dropout_prob', type=float, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=2)
     args = parser.parse_args()
 
@@ -199,8 +205,10 @@ if __name__ == '__main__':
 
         shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
 
+    # The benchmark datasets do not contain unary predicates -- therefore the initial feature vector dimension can be set to one
+    feat_dim = 1
     if not args.hyperparam_tune:
-        train(device=device, feat_dim=1, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
+        train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
               log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
               summary_writer=writer)
 
@@ -213,7 +221,8 @@ if __name__ == '__main__':
         study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
             n_startup_trials=5, n_warmup_steps=30, interval_steps=10))
         study.optimize(
-            lambda trial: objective(trial=trial, device=device, train_data=train_data, val_data=val_data,
+            lambda trial: objective(trial=trial, device=device, feat_dim=feat_dim, shapes_dict=shapes_dict,
+                                    train_data=train_data, val_data=val_data,
                                     log_directory=log_directory, model_directory=model_directory, args=args),
             n_trials=100)
 
