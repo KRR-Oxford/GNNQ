@@ -28,8 +28,7 @@ class HGNNLayer(nn.Module):
         # Not sure whether these tensors are automatically move to device
         dest_indices = torch.tensor([], dtype=torch.int16)
         msgs = torch.tensor([], dtype=torch.float16)
-        # Loop through all edge types (hyperedge types).
-        # It would make more sense to loop thorugh shape dict and check whether edge type is an indice dict
+        # Loop through all edge types -- it would make more sense to loop through shape dict and check whether edge type is an indice dict
         for edge, edge_indices in indices_dict.items():
             if edge_indices.numel():
                 i = torch.reshape(edge_indices[1], (-1, self.shapes_dict[edge]))
