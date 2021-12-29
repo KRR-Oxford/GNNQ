@@ -143,13 +143,12 @@ def split_graph(g, mono, query):
     print(len(neg_answers))
 
 
-def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules):
+def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, samples_per_answer, positive):
     cleaned_g = g - witness_triples
     nx_cleaned_g = rdflib_to_networkx_graph(cleaned_g)
-    postive_samples = []
-    negative_samples = []
+    samples = []
     for answer in answers[:10]:
-        for i in range(1):
+        for i in range(samples_per_answer):
             witness_graph, witness_entities = random.choice(witness_graphs[answer])
             # Sample from cleaned_q + witness?
             sample_entities = extract_connected_subgraph_of_khop(nx_cleaned_g, witness_entities, 2)
@@ -162,7 +161,7 @@ def create_samples_graphs(g, answers, witness_graphs, witness_triples, completio
             accept = False
             while not accept:
                 witness_graph_copy = copy.deepcopy(witness_graph)
-                if random.randint(0, 1):
+                if positive:
                     # Corrupt witness such that it can be recovered with completion function -> positive sample
                     print('Positive sample!')
                     for triple in witness_graph:
@@ -176,7 +175,7 @@ def create_samples_graphs(g, answers, witness_graphs, witness_triples, completio
                             accept = True
                     if accept:
                         print('Positive sample accepted!')
-                        postive_samples.append(sample_graph + witness_graph_copy)
+                        samples.append(sample_graph + witness_graph_copy)
                     else:
                         print('Positive sample rejected!')
                 else:
@@ -195,10 +194,10 @@ def create_samples_graphs(g, answers, witness_graphs, witness_triples, completio
                                 accept = True
                     if accept:
                         print('Negative sample accepted!')
-                        negative_samples.append(sample_graph + witness_graph_copy)
+                        samples.append(sample_graph + witness_graph_copy)
                     else:
                         print('Negative sample rejected!')
-    return postive_samples, negative_samples
+    return samples
 
 
 def create_samples(g, query):
@@ -221,15 +220,21 @@ def create_samples(g, query):
     print('Constructed witness graphs!')
     answers = list(witness_graphs.keys())
     train_answers, test_answers, _, _ = randomly_split_list(answers)
-    train_positive_samples, train_negative_samples = create_samples_graphs(g, train_answers, witness_graphs,
-                                                                           witness_triples, completion_rules)
-    outfile = open('training_samples.pkl', 'wb')
-    pickle.dump((train_positive_samples, train_negative_samples), outfile)
+    train_pos_answers, train_neg_answers, _, _ = randomly_split_list(train_answers)
+    test_pos_answers, test_neg_answers, _, _ = randomly_split_list(test_answers)
+    train_pos_samples = create_samples_graphs(g, train_pos_answers, witness_graphs,
+                                                   witness_triples, completion_rules, 1, True)
+    train_neg_samples = create_samples_graphs(g, train_neg_answers, witness_graphs,
+                                                   witness_triples, completion_rules, 1, False)
+    outfile = open('train_samples.pkl', 'wb')
+    pickle.dump((train_pos_samples, train_pos_answers, train_neg_samples, train_neg_answers), outfile)
     outfile.close()
-    test_positive_samples, test_negative_samples = create_samples_graphs(g, test_answers, witness_graphs,
-                                                                         witness_triples, completion_rules)
+    test_pos_samples = create_samples_graphs(g, test_pos_answers, witness_graphs,
+                                              witness_triples, completion_rules, 1, True)
+    test_neg_samples = create_samples_graphs(g, test_neg_answers, witness_graphs,
+                                              witness_triples, completion_rules, 1, False)
     outfile = open('test_samples.pkl', 'wb')
-    pickle.dump((test_positive_samples, test_negative_samples), outfile)
+    pickle.dump((test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers), outfile)
     outfile.close()
 
 
