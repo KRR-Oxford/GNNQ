@@ -3,12 +3,13 @@ from rdflib.plugins.sparql import prepareQuery
 from rdflib.extras.external_graph_libs import rdflib_to_networkx_graph, rdflib_to_networkx_multidigraph
 import networkx as nx
 import random
-from itertools import compress
+import itertools
 from collections import defaultdict
 import uuid
 import torch
 import copy
 import pickle
+import argparse
 
 
 def randomly_split_list(l):
@@ -17,8 +18,8 @@ def randomly_split_list(l):
     mask = [True] * ones + [False] * zeros
     random.shuffle(mask)
     inversed_mask = [not b00l for b00l in mask]
-    pos = list(compress(l, mask))
-    neg = list(compress(l, inversed_mask))
+    pos = list(itertools.compress(l, mask))
+    neg = list(itertools.compress(l, inversed_mask))
     return pos, neg, mask, inversed_mask
 
 
@@ -143,64 +144,70 @@ def split_graph(g, mono, query):
     print(len(neg_answers))
 
 
-def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, samples_per_answer, positive):
-    cleaned_g = g - witness_triples
-    nx_cleaned_g = rdflib_to_networkx_graph(cleaned_g)
+def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, positive):
+    g_no_witnesses = g - witness_triples
+    nx_cleaned_g = rdflib_to_networkx_graph(g_no_witnesses)
     samples = []
-    for answer in answers[:10]:
-        for i in range(samples_per_answer):
-            witness_graph, witness_entities = random.choice(witness_graphs[answer])
-            # Sample from cleaned_q + witness?
-            sample_entities = extract_connected_subgraph_of_khop(nx_cleaned_g, witness_entities, 2)
-            print('Sample entities')
-            print(len(sample_entities))
-            sample_graph = rdflib_to_networkx_multidigraph(cleaned_g).subgraph(list(sample_entities)).copy()
-            print('Sample graph size')
-            print(sample_graph.number_of_edges())
-            sample_graph = networkx_multidigraph_to_rdflib(sample_graph)
-            accept = False
-            while not accept:
-                witness_graph_copy = copy.deepcopy(witness_graph)
-                if positive:
-                    # Corrupt witness such that it can be recovered with completion function -> positive sample
-                    print('Positive sample!')
-                    for triple in witness_graph:
-                        if torch.bernoulli(torch.tensor([0.9])) or (str(triple[1]) not in completion_rules.keys()):
-                            if torch.bernoulli(torch.tensor([0.5])) and (str(triple[1]) in completion_rules.keys()):
-                                ground_rule(witness_graph_copy, triple, completion_rules)
-                        else:
-                            witness_graph_copy.remove(triple)
-                            print('Corrupted sample!')
+    used_answers = []
+    for answer in answers:
+        witness_graph, witness_entities = random.choice(witness_graphs[answer])
+        # check that all entities occur in the cleaned KG
+        if not all(e in nx_cleaned_g.nodes for e in witness_entities):
+            print('Sample entity not contained in KG!')
+            continue
+        # Sample from cleaned_q + witness?
+        sample_entities = extract_connected_subgraph_of_khop(nx_cleaned_g, witness_entities, 2)
+        print('Sample entities')
+        print(len(sample_entities))
+        sample_graph = rdflib_to_networkx_multidigraph(g_no_witnesses).subgraph(list(sample_entities)).copy()
+        print('Sample graph size')
+        print(sample_graph.number_of_edges())
+        sample_graph = networkx_multidigraph_to_rdflib(sample_graph)
+        accept = False
+        while not accept:
+            witness_graph_copy = copy.deepcopy(witness_graph)
+            if positive:
+                # Corrupt witness such that it can be recovered with completion function -> positive sample
+                print('Positive sample!')
+                for triple in witness_graph:
+                    if torch.bernoulli(torch.tensor([0.9])) or (str(triple[1]) not in completion_rules.keys()):
+                        if torch.bernoulli(torch.tensor([0.5])) and (str(triple[1]) in completion_rules.keys()):
                             ground_rule(witness_graph_copy, triple, completion_rules)
-                            accept = True
-                    if accept:
-                        print('Positive sample accepted!')
-                        samples.append(sample_graph + witness_graph_copy)
                     else:
-                        print('Positive sample rejected!')
+                        witness_graph_copy.remove(triple)
+                        print('Corrupted sample!')
+                        ground_rule(witness_graph_copy, triple, completion_rules)
+                        accept = True
+                if accept:
+                    print('Positive sample accepted!')
+                    samples.append(sample_graph + witness_graph_copy)
+                    used_answers.append(answer)
                 else:
-                    # Corrupt witness such that it can not be recovered with completion function -> negative sample
-                    print('Negative sample!')
-                    for triple in witness_graph:
-                        if torch.bernoulli(torch.tensor([0.8])) or (str(triple[1]) not in completion_rules.keys()):
-                            if torch.bernoulli(torch.tensor([0.5])) and (str(triple[1]) in completion_rules.keys()):
-                                ground_rule(witness_graph_copy, triple, completion_rules)
-                        else:
-                            witness_graph_copy.remove(triple)
-                            if torch.bernoulli(torch.tensor([0.5])):
-                                ground_rule(witness_graph_copy, triple, completion_rules)
-                            else:
-                                print('Cannot be recovered!')
-                                accept = True
-                    if accept:
-                        print('Negative sample accepted!')
-                        samples.append(sample_graph + witness_graph_copy)
+                    print('Positive sample rejected!')
+            else:
+                # Corrupt witness such that it can not be recovered with completion function -> negative sample
+                print('Negative sample!')
+                for triple in witness_graph:
+                    if torch.bernoulli(torch.tensor([0.8])) or (str(triple[1]) not in completion_rules.keys()):
+                        if torch.bernoulli(torch.tensor([0.5])) and (str(triple[1]) in completion_rules.keys()):
+                            ground_rule(witness_graph_copy, triple, completion_rules)
                     else:
-                        print('Negative sample rejected!')
-    return samples
+                        witness_graph_copy.remove(triple)
+                        if torch.bernoulli(torch.tensor([0.5])):
+                            ground_rule(witness_graph_copy, triple, completion_rules)
+                        else:
+                            print('Cannot be recovered!')
+                            accept = True
+                if accept:
+                    print('Negative sample accepted!')
+                    samples.append(sample_graph + witness_graph_copy)
+                    used_answers.append(answer)
+                else:
+                    print('Negative sample rejected!')
+    return samples, used_answers
 
 
-def create_samples(g, query):
+def create_samples(g, query, train_file, test_file):
     completion_rules = rules()
     q = prepareQuery(query)
     qres = g.query(q)
@@ -219,57 +226,45 @@ def create_samples(g, query):
         witness_graphs[row[q.algebra['PV'][0]]].append((dummy, sample_entities))
     print('Constructed witness graphs!')
     answers = list(witness_graphs.keys())
+    samples_per_answer = 3
     train_answers, test_answers, _, _ = randomly_split_list(answers)
     train_pos_answers, train_neg_answers, _, _ = randomly_split_list(train_answers)
     test_pos_answers, test_neg_answers, _, _ = randomly_split_list(test_answers)
-    train_pos_samples = create_samples_graphs(g, train_pos_answers, witness_graphs,
-                                                   witness_triples, completion_rules, 1, True)
-    train_neg_samples = create_samples_graphs(g, train_neg_answers, witness_graphs,
-                                                   witness_triples, completion_rules, 1, False)
-    outfile = open('train_samples.pkl', 'wb')
+    train_pos_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in train_pos_answers))
+    train_neg_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in train_neg_answers))
+    test_pos_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in test_pos_answers))
+    test_neg_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in test_neg_answers))
+    train_pos_samples, train_pos_answers = create_samples_graphs(g, train_pos_answers, witness_graphs,
+                                                   witness_triples, completion_rules, True)
+    train_neg_samples, train_neg_answers = create_samples_graphs(g, train_neg_answers, witness_graphs,
+                                                   witness_triples, completion_rules, False)
+    outfile = open(train_file, 'wb')
     pickle.dump((train_pos_samples, train_pos_answers, train_neg_samples, train_neg_answers), outfile)
     outfile.close()
-    test_pos_samples = create_samples_graphs(g, test_pos_answers, witness_graphs,
-                                              witness_triples, completion_rules, 1, True)
-    test_neg_samples = create_samples_graphs(g, test_neg_answers, witness_graphs,
-                                              witness_triples, completion_rules, 1, False)
-    outfile = open('test_samples.pkl', 'wb')
+    test_pos_samples, test_pos_answers = create_samples_graphs(g, test_pos_answers, witness_graphs,
+                                              witness_triples, completion_rules, True)
+    test_neg_samples, test_neg_answers = create_samples_graphs(g, test_neg_answers, witness_graphs,
+                                              witness_triples, completion_rules, False)
+    outfile = open(test_file, 'wb')
     pickle.dump((test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers), outfile)
     outfile.close()
 
 
-# def create_core_graphs(g, query):
-#     q = prepareQuery(query)
-#     qres = g.query(q)
-#     print('Answered query')
-#     core_graphs = []
-#     answers = []
-#     print(len(qres))
-#     c = 0
-#     for row in qres.bindings:
-#         g = Graph()
-#         i = 0
-#         for triple in q.algebra['p']['p']['triples']:
-#             g.add((row[triple[0]],triple[1],row[triple[2]]))
-#             i+=2
-#         core_graphs.append(g)
-#         answers.append(row[0])
-#     return core_graphs, answers
-
 
 if __name__ == '__main__':
-    graph = 'datasets/fb15k237/dataset1/graph.nt'
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--query_string', type=str)
+    parser.add_argument('--graph', type=str)
+    parser.add_argument('--train_file', type=str)
+    parser.add_argument('--test_data', type=str)
+    args = parser.parse_args()
+    graph = args.graph
+    query = args.query_string
+    train_file = args.train_file
+    test_file = args.test_file
 
     g = Graph()
     g.parse(graph, format="nt")
 
-    # query = 'CONSTRUCT WHERE { ?film <http://dummyrel.com/film/film/genre> ?genre . ?film <http://dummyrel.com/film/film/country> ?country . ?genre <http://dummyrel.com/media_common/netflix_genre/titles> ?titles . ?country <http://dummyrel.com/location/country/official_language> ?language . ?country2 <http://dummyrel.com/location/location/adjoin_s./location/adjoining_relationship/adjoins> ?country . ?country2 <http://dummyrel.com/organization/organization_member/member_of./organization/organization_membership/organization> ?org . ?event <http://dummyrel.com/base/culturalevent/event/entity_involved> ?org }'
-    mono_query = 'select distinct ?film where { ?film <http://dummyrel.com/film/film/genre> ?genre . ?film <http://dummyrel.com/film/film/country> ?country . ?genre <http://dummyrel.com/media_common/netflix_genre/titles> ?titles . ?country <http://dummyrel.com/location/country/official_language> ?language . ?country2 <http://dummyrel.com/location/location/adjoin_s./location/adjoining_relationship/adjoins> ?country . ?country2 <http://dummyrel.com/organization/organization_member/member_of./organization/organization_membership/organization> ?org . ?event <http://dummyrel.com/base/culturalevent/event/entity_involved> ?org }'
-    mono_query = 'select distinct ?org where { ?org <http://dummyrel.com/organization/organization/headquarters./location/mailing_address/state_province_region> ?region . ?biggerregion <http://dummyrel.com/location/location/contains> ?region . ?biggerregion <http://dummyrel.com/location/location/adjoin_s./location/adjoining_relationship/adjoins> ?neighbourregion . ?biggerregion <http://dummyrel.com/location/country/capital> ?capital . ?neighbourregion <http://dummyrel.com/location/country/official_language> ?lang . ?capital <http://dummyrel.com/common/topic/webpage./common/webpage/category> ?category . ?capital <http://dummyrel.com/travel/travel_destination/climate./travel/travel_destination_monthly_climate/month> ?month }'
-    bgp_query = 'select ?film ?genre ?film ?country ?genre ?titles ?country ?language ?country2 ?country ?country2 ?org ?event ?org where { ?film <http://dummyrel.com/film/film/genre> ?genre . ?film <http://dummyrel.com/film/film/country> ?country . ?genre <http://dummyrel.com/media_common/netflix_genre/titles> ?titles . ?country <http://dummyrel.com/location/country/official_language> ?language . ?country2 <http://dummyrel.com/location/location/adjoin_s./location/adjoining_relationship/adjoins> ?country . ?country2 <http://dummyrel.com/organization/organization_member/member_of./organization/organization_membership/organization> ?org . ?event <http://dummyrel.com/base/culturalevent/event/entity_involved> ?org }'
-    bgp_query = 'select ?org ?region ?biggerregion ?region ?biggerregion ?neighbourregion ?biggerregion ?capital ?neighbourregion ?lang ?capital ?category ?capital ?month where { ?org <http://dummyrel.com/organization/organization/headquarters./location/mailing_address/state_province_region> ?region . ?biggerregion <http://dummyrel.com/location/location/contains> ?region . ?biggerregion <http://dummyrel.com/location/location/adjoin_s./location/adjoining_relationship/adjoins> ?neighbourregion . ?biggerregion <http://dummyrel.com/location/country/capital> ?capital . ?neighbourregion <http://dummyrel.com/location/country/official_language> ?lang . ?capital <http://dummyrel.com/common/topic/webpage./common/webpage/category> ?category . ?capital <http://dummyrel.com/travel/travel_destination/climate./travel/travel_destination_monthly_climate/month> ?month }'
-
-    # graphs = split_graph(g, mono_query ,bgp_query)
-    create_samples(g, bgp_query)
-    # compute_k_hop_neighbourhood(core_graphs)
+    create_samples(g, query, train_file, test_file)
     print('Done')
