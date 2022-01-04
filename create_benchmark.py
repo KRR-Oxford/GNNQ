@@ -70,79 +70,6 @@ def ground_rule(g, triple, rules):
     g.add((new_subject, URIRef("http://dummyrel.com" + atoms[-1].split('(')[0]), triple[2]))
 
 
-def split_graph(g, mono, query):
-    # rules_dict = rules()
-    q = prepareQuery(query)
-    qres = g.query(q)
-    witness_graphs = defaultdict(list)
-    witness_triples = Graph()
-    print('BGP matches!')
-    print(len(qres))
-    for row in qres.bindings:
-        dummy = Graph()
-        for triple in q.algebra['p']['p']['triples']:
-            dummy.add((row[triple[0]], triple[1], row[triple[2]]))
-            witness_triples.add((row[triple[0]], triple[1], row[triple[2]]))
-        witness_graphs[row[q.algebra['PV'][0]]].append(dummy)
-    cleaned_g = g - witness_triples
-    answers = list(witness_graphs.keys())
-    print('Distict answers!')
-    print(len(answers))
-    train_answers, test_answers, _, _ = randomly_split_list(answers)
-    g_train = Graph()
-    # g_test = Graph()
-    for triple in cleaned_g:
-        if random.randint(0, 1):
-            g_train.add(triple)
-        # else:
-        #     g_test.add(triple)
-    print('All matches removed!')
-    print(len(g_train.query(q)))
-    # print(len(g_test.query(q)))
-    witness_triples_train = Graph()
-    pos_answers = []
-    neg_answers = []
-    random.shuffle(train_answers)
-    for answer in train_answers:
-        print(answer)
-        # Reject witness that overlap with existing witnesses
-        # reject = True
-        counter = 0
-        # while reject:
-        for witness in witness_graphs[answer]:
-            reject = False
-            # witness = random.choice(witness_graphs[answer])
-            for triple in witness:
-                if triple in witness_triples_train:
-                    reject = True
-                    print('Witness rejected')
-                    break
-            # if counter > 20:
-            #     print('No non-overlapping witness found for answer ' + answer)
-            #     reject = True
-            #     print('')
-            #     break
-            counter += 1
-            if not reject:
-                if random.randint(0, 1):
-                    print('Added positive example')
-                    pos_answers.append(witness)
-                    for triple in witness:
-                        g_train.add(triple)
-                        witness_triples_train.add(triple)
-                    break
-                else:
-                    print('Added negative example')
-                    neg_answers.append(witness)
-                    for triple in witness:
-                        g_train.add(triple)
-                        witness_triples_train.add(triple)
-                    break
-    print('Positive examples')
-    print(len(pos_answers))
-    print('Negative examples')
-    print(len(neg_answers))
-
 
 def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, positive):
     g_no_witnesses = g - witness_triples
@@ -207,7 +134,7 @@ def create_samples_graphs(g, answers, witness_graphs, witness_triples, completio
     return samples, used_answers
 
 
-def create_samples(g, query, train_file, test_file):
+def create_samples(g, query, train_file, val_file, test_file, samples_per_answer):
     completion_rules = rules()
     q = prepareQuery(query)
     qres = g.query(q)
@@ -226,14 +153,23 @@ def create_samples(g, query, train_file, test_file):
         witness_graphs[row[q.algebra['PV'][0]]].append((dummy, sample_entities))
     print('Constructed witness graphs!')
     answers = list(witness_graphs.keys())
-    samples_per_answer = 3
     train_answers, test_answers, _, _ = randomly_split_list(answers)
+    val_answers, test_answers, _, _ = randomly_split_list(test_answers)
+
     train_pos_answers, train_neg_answers, _, _ = randomly_split_list(train_answers)
+    val_pos_answers, val_neg_answers, _, _ = randomly_split_list(val_answers)
     test_pos_answers, test_neg_answers, _, _ = randomly_split_list(test_answers)
+
     train_pos_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in train_pos_answers))
     train_neg_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in train_neg_answers))
+
+    val_pos_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in val_pos_answers))
+    val_neg_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in val_neg_answers))
+
     test_pos_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in test_pos_answers))
     test_neg_answers = list(itertools.chain.from_iterable(itertools.repeat(x, samples_per_answer) for x in test_neg_answers))
+
+    # Train samples!
     train_pos_samples, train_pos_answers = create_samples_graphs(g, train_pos_answers, witness_graphs,
                                                    witness_triples, completion_rules, True)
     train_neg_samples, train_neg_answers = create_samples_graphs(g, train_neg_answers, witness_graphs,
@@ -241,6 +177,17 @@ def create_samples(g, query, train_file, test_file):
     outfile = open(train_file, 'wb')
     pickle.dump((train_pos_samples, train_pos_answers, train_neg_samples, train_neg_answers), outfile)
     outfile.close()
+
+    # Val samples!
+    val_pos_samples, val_pos_answers = create_samples_graphs(g, val_pos_answers, witness_graphs,
+                                                                 witness_triples, completion_rules, True)
+    val_neg_samples, val_neg_answers = create_samples_graphs(g, val_neg_answers, witness_graphs,
+                                                                 witness_triples, completion_rules, False)
+    outfile = open(val_file, 'wb')
+    pickle.dump((val_pos_samples, val_pos_answers, val_neg_samples, val_neg_answers), outfile)
+    outfile.close()
+
+    # Test samples!
     test_pos_samples, test_pos_answers = create_samples_graphs(g, test_pos_answers, witness_graphs,
                                               witness_triples, completion_rules, True)
     test_neg_samples, test_neg_answers = create_samples_graphs(g, test_neg_answers, witness_graphs,
@@ -256,15 +203,14 @@ if __name__ == '__main__':
     parser.add_argument('--query_string', type=str)
     parser.add_argument('--graph', type=str)
     parser.add_argument('--train_file', type=str)
-    parser.add_argument('--test_data', type=str)
+    parser.add_argument('--val_file', type=str)
+    parser.add_argument('--test_file', type=str)
+    parser.add_argument('--samples_per_answer', type=int)
     args = parser.parse_args()
     graph = args.graph
-    query = args.query_string
-    train_file = args.train_file
-    test_file = args.test_file
 
     g = Graph()
     g.parse(graph, format="nt")
 
-    create_samples(g, query, train_file, test_file)
+    create_samples(g, args.query_string, args.train_file, args.val_file, args.test_file, args.samples_per_answer)
     print('Done')
