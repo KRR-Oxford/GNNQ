@@ -73,17 +73,17 @@ def ground_rule(g, triple, rules):
 
 def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, positive):
     g_no_witnesses = g - witness_triples
-    nx_cleaned_g = rdflib_to_networkx_graph(g_no_witnesses)
+    nx_g_no_witnesses = rdflib_to_networkx_graph(g_no_witnesses)
     samples = []
     used_answers = []
     for answer in answers:
         witness_graph, witness_entities = random.choice(witness_graphs[answer])
         # check that all entities occur in the cleaned KG
-        if not all(e in nx_cleaned_g.nodes for e in witness_entities):
+        if not all(e in nx_g_no_witnesses.nodes for e in witness_entities):
             print('Sample entity not contained in KG!')
             continue
         # Sample from cleaned_q + witness?
-        sample_entities = extract_connected_subgraph_of_khop(nx_cleaned_g, witness_entities, 2)
+        sample_entities = extract_connected_subgraph_of_khop(nx_g_no_witnesses, witness_entities, 2)
         print('Sample entities')
         print(len(sample_entities))
         sample_graph = rdflib_to_networkx_multidigraph(g_no_witnesses).subgraph(list(sample_entities)).copy()

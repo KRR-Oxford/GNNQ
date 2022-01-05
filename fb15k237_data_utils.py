@@ -24,7 +24,6 @@ def create_indices_dict(graph, entity2id=None):
             ent += 1
         indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
-    # indices_dict = dict(indices_dict)
     indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
                     **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
 
@@ -69,7 +68,7 @@ def compute_subquery_answers(graph, entity2id, subqueries):
     return subquery_answers
 
 def create_y_vector(answers, num_nodes):
-    # K - hot vector indicating all answers
+    # k-hot vector indicating all answers
     y = torch.scatter(torch.zeros(num_nodes, dtype=torch.float32), 0, torch.tensor(answers),
                       torch.ones(num_nodes, dtype=torch.float32))
     return y
@@ -79,20 +78,25 @@ def create_data_object(labels, graph, answers, aug, subqueries):
     num_nodes = len(entity2id)
     # dummy feature vector dimension
     feat_dim = 1
-    x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
-    answers = [entity2id[str(answer)] for answer in answers]
-    if aug:
-        hyper_indices_dict = compute_subquery_answers(graph=graph, entity2id=entity2id, subqueries=subqueries)
-        indices_dict = {**indices_dict, **hyper_indices_dict}
-    return {'indices_dict': indices_dict, 'x': x, 'answers': torch.tensor(answers), 'labels': torch.tensor(labels,dtype=torch.float)}
+    try:
+        x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
+        answers = [entity2id[str(answer)] for answer in answers]
+        if aug:
+            hyper_indices_dict = compute_subquery_answers(graph=graph, entity2id=entity2id, subqueries=subqueries)
+            indices_dict = {**indices_dict, **hyper_indices_dict}
+        return {'indices_dict': indices_dict, 'x': x, 'answers': torch.tensor(answers), 'labels': torch.tensor(labels,dtype=torch.float)}
+    except KeyError:
+        print('Answer not in sample!')
+        return None
 
 
 def prep_data(pos, graphs, answers, aug, subqueries=None):
-    counter = 0
     data = []
+    c = 0
     for graph in graphs:
-        print('Graph')
-        data_object = create_data_object([pos], graph, [answers[counter]], aug=aug, subqueries=subqueries)
-        data.append(data_object)
-        counter += 1
+        data_object = create_data_object([pos], graph, [answers[c]], aug=aug, subqueries=subqueries)
+        if data_object:
+            data.append(data_object)
+            print('Loaded {0}/{1} samples!'.format(c, len(graphs)))
+        c += 1
     return data

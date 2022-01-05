@@ -102,10 +102,8 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
-        # dummy loss
-        loss = 10000
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            loss, val_acc, val_pre, val_re, val_auc= compute_metrics(
+            loss, val_acc, val_pre, val_re, val_auc = compute_metrics(
                 val_data, model, threshold)
             lr_scheduler.step()
 
@@ -128,9 +126,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--query_string', type=str)
-    parser.add_argument('--train_data', type=str, nargs='+')
-    parser.add_argument('--val_data', type=str, nargs='+')
-    parser.add_argument('--test_data', type=str, nargs='+')
+    parser.add_argument('--train_data', type=str)
+    parser.add_argument('--val_data', type=str)
+    parser.add_argument('--test_data', type=str)
     parser.add_argument('--log_dir', type=str, default='runs/')
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
@@ -165,11 +163,15 @@ if __name__ == '__main__':
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
 
-    infile = open('training_samples.pkl', 'rb')
+    infile = open(args.train_data, 'rb')
     train_pos_samples, train_pos_answers, train_neg_samples, train_neg_answers = pickle.load(infile)
     infile.close()
 
-    infile = open('test_samples.pkl', 'rb')
+    infile = open(args.val_data, 'rb')
+    val_pos_samples, val_pos_answers, val_neg_samples, val_neg_answers = pickle.load(infile)
+    infile.close()
+
+    infile = open(args.test_data, 'rb')
     test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers = pickle.load(infile)
     infile.close()
 
@@ -179,37 +181,77 @@ if __name__ == '__main__':
                                                          subquery_depth=args.subquery_depth,
                                                          max_num_subquery_vars=args.max_num_subquery_vars)
 
+        print('Positive training samples!')
         train_pos_data_objects = prep_data(1,train_pos_samples, train_pos_answers, aug=args.aug,
                                subqueries=subqueries)
+        print('Negative training samples!')
         train_neg_data_objects = prep_data(0,train_neg_samples, train_neg_answers, aug=args.aug,
                              subqueries=subqueries)
+        print('Positive validation samples!')
+        val_pos_data_objects = prep_data(1, val_pos_samples, val_pos_answers, aug=args.aug,
+                                          subqueries=subqueries)
+        print('Negative validation samples!')
+        val_neg_data_objects = prep_data(0, val_neg_samples, val_neg_answers, aug=args.aug,
+                                          subqueries=subqueries)
+        print('Positive testing samples!')
         test_pos_data_objects = prep_data(1,test_pos_samples, test_pos_answers, aug=args.aug,
                                            subqueries=subqueries)
+        print('Negative testing samples!')
         test_neg_data_objects = prep_data(0,test_neg_samples, test_neg_answers, aug=args.aug,
                                            subqueries=subqueries)
 
         rels = set()
-        for d in train_pos_data_objects + train_neg_data_objects + test_pos_data_objects + test_neg_data_objects:
+        for d in train_pos_data_objects + train_neg_data_objects + val_pos_data_objects + val_neg_data_objects + test_pos_data_objects + test_neg_data_objects:
             for k in d['indices_dict'].keys():
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
         shapes_dict = {**shapes_dict, **subquery_shape}
     else:
         subqueries = None
-        train_data = prep_data(data_directories=args.train_data, query_string=args.query_string, aug=args.aug)
-        val_data = prep_data(data_directories=args.val_data, query_string=args.query_string, aug=args.aug)
+        print('Positive training samples!')
+        train_pos_data_objects = prep_data(1, train_pos_samples, train_pos_answers, aug=args.aug,
+                                           subqueries=subqueries)
+        print('Negative training samples!')
+        train_neg_data_objects = prep_data(0, train_neg_samples, train_neg_answers, aug=args.aug,
+                                           subqueries=subqueries)
+        print('Positive validation samples!')
+        val_pos_data_objects = prep_data(1, val_pos_samples, val_pos_answers, aug=args.aug,
+                                         subqueries=subqueries)
+        print('Negative validation samples!')
+        val_neg_data_objects = prep_data(0, val_neg_samples, val_neg_answers, aug=args.aug,
+                                         subqueries=subqueries)
+        print('Positive testing samples!')
+        test_pos_data_objects = prep_data(1, test_pos_samples, test_pos_answers, aug=args.aug,
+                                          subqueries=subqueries)
+        print('Negative testing samples!')
+        test_neg_data_objects = prep_data(0, test_neg_samples, test_neg_answers, aug=args.aug,
+                                          subqueries=subqueries)
 
-        shapes_dict = {k: 1 for k, v in train_data[0]['indices_dict'].items()}
+        rels = set()
+        for d in train_pos_data_objects + train_neg_data_objects  + val_pos_data_objects + val_neg_data_objects +  test_pos_data_objects + test_neg_data_objects:
+            for k in d['indices_dict'].keys():
+                rels.add(k)
+        shapes_dict = {k: 1 for k in rels}
 
     # The benchmark datasets do not contain unary predicates -- therefore the initial feature vector dimension can be set to one
     feat_dim = 1
 
-    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_pos_data_objects+train_neg_data_objects, val_data=test_pos_data_objects+test_neg_data_objects,
+    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_pos_data_objects+train_neg_data_objects, val_data=val_pos_data_objects+val_neg_data_objects,
           log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
           summary_writer=writer)
 
-    # if args.test:
-    #     print('Start testing')
-    #     eval(test_data_directories=args.test_data, model_directory=model_directory, aug=args.aug, device=device,
-    #          summary_writer=writer)
+    if args.test:
+        print('Start Testing!')
+        model = torch.load(os.path.join(model_directory, 'model.pt'))
+        model.to(device)
+        for param in model.parameters():
+            print(type(param.data), param.size())
+        compute_metrics(test_pos_data_objects + test_neg_data_objects, model)
+        _, test_acc, test_pre, test_re, test_auc = compute_metrics(test_pos_data_objects + test_neg_data_objects, model)
+
+        print('Testing!')
+        print('Accuracy for all answers: ' + str(test_acc))
+        print('Precision for all answers: ' + str(test_pre))
+        print('Recall for all answers: ' + str(test_re))
+        print('AUC for all answers: ' + str(test_auc))
 
