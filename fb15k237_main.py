@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
-from new_data_utils import generate_subqueries, prep_data
+from fb15k237_data_utils import generate_subqueries, prep_data
 import pickle
 
 # Todo:
@@ -82,12 +82,13 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred,y)
             loss.backward()
             total_train_loss = total_train_loss + loss
-            print('Loss: ' + str(loss.item()))
+            # print('Loss: ' + str(loss.item()))
             pred = torch.sigmoid(pred)
             train_accuracy(pred, data_object['labels'].int())
             train_precision(pred, data_object['labels'].int())
             train_recall(pred, data_object['labels'].int())
         optimizer.step()
+        print('Loss: ' + str(total_train_loss.item()))
 
         acc = train_accuracy.compute().item()
         pre = train_precision.compute().item()

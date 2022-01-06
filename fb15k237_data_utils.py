@@ -78,6 +78,7 @@ def create_data_object(labels, graph, answers, aug, subqueries):
     num_nodes = len(entity2id)
     # dummy feature vector dimension
     feat_dim = 1
+    # Filter out samples that lost answer entity during corruption - this logic should be moved to the creation of the benchmark
     try:
         x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
         answers = [entity2id[str(answer)] for answer in answers]
@@ -95,6 +96,7 @@ def prep_data(pos, graphs, answers, aug, subqueries=None):
     c = 0
     for graph in graphs:
         data_object = create_data_object([pos], graph, [answers[c]], aug=aug, subqueries=subqueries)
+        # Filter out samples that lost answer entity during corruption - this logic should be moved to the creation of the benchmark
         if data_object:
             data.append(data_object)
             print('Loaded {0}/{1} samples!'.format(c, len(graphs)))
