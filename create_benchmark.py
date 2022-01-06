@@ -69,6 +69,72 @@ def ground_rule(g, triple, rules):
         new_subject = new_object
     g.add((new_subject, URIRef("http://dummyrel.com" + atoms[-1].split('(')[0]), triple[2]))
 
+def corrupt_graph(g,prob):
+    for triple in g:
+        if torch.bernoulli(torch.tensor([prob])):
+            g.remove(triple)
+    return g
+
+
+def create_test_sample_graphs(g, query, answers, witness_graphs, completion_rules, positive):
+    samples = []
+    used_answers = []
+    for answer in answers:
+        sample_graph = copy.deepcopy(g)
+        sample_graph = corrupt_graph(sample_graph, 0.2)
+        witnesses_for_answer = witness_graphs[answer]
+        witness_triples_for_answer = Graph()
+        for witness_for_answer, _ in witnesses_for_answer:
+            for triple in witness_for_answer:
+                witness_triples_for_answer.add(triple)
+        sample_graph = sample_graph - witness_triples_for_answer
+        qres = witness_triples_for_answer.query(query)
+        print(len(qres))
+        accept = False
+        while not accept:
+            if positive:
+                # Corrupt witness such that it can be recovered with completion function -> positive sample
+                print('Positive sample!')
+                for triple in witness_triples_for_answer:
+                    if torch.bernoulli(torch.tensor([0.8])) or (str(triple[1]) not in completion_rules.keys()):
+                        if torch.bernoulli(torch.tensor([0.5])) and (str(triple[1]) in completion_rules.keys()):
+                            ground_rule(witness_triples_for_answer, triple, completion_rules)
+                    else:
+                        witness_triples_for_answer.remove(triple)
+                        ground_rule(witness_triples_for_answer, triple, completion_rules)
+                qres = witness_triples_for_answer.query(query)
+                print(len(qres))
+                if len(qres) == 0:
+                    print('Positive sample accepted!')
+                    samples.append(sample_graph + witness_triples_for_answer)
+                    used_answers.append(answer)
+                    accept = True
+                else:
+                    print('Positive sample rejected!')
+            else:
+                # Corrupt witness such that it can not be recovered with completion function -> negative sample
+                print('Negative sample!')
+                dummy = Graph()
+                for triple in witness_triples_for_answer:
+                    if torch.bernoulli(torch.tensor([0.8])) or (str(triple[1]) not in completion_rules.keys()):
+                        if torch.bernoulli(torch.tensor([0.75])) and (str(triple[1]) in completion_rules.keys()):
+                            ground_rule(witness_triples_for_answer, triple, completion_rules)
+                            # Are later removed and can be recovered
+                            if torch.bernoulli(torch.tensor([0.5])):
+                                dummy.add(triple)
+                    else:
+                        witness_triples_for_answer.remove(triple)
+                qres = witness_triples_for_answer.query(query)
+                print(len(qres))
+                if len(qres) == 0:
+                    print('Negative sample accepted!')
+                    samples.append((sample_graph + witness_triples_for_answer) - dummy)
+                    used_answers.append(answer)
+                    accept = True
+                else:
+                    print('Negative sample rejected!')
+    return samples, used_answers
+
 
 
 def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, positive):
@@ -194,6 +260,12 @@ def create_samples(g, query, train_file, val_file, test_file, samples_per_answer
                                               witness_triples, completion_rules, False)
     outfile = open(test_file, 'wb')
     pickle.dump((test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers), outfile)
+    outfile.close()
+
+    test_pos_samples_full_graph, test_pos_answers_full_graph = create_test_sample_graphs(g, query, test_pos_answers, witness_graphs, completion_rules, True)
+    test_neg_samples_full_graph, test_neg_answers_full_graph = create_test_sample_graphs(g, query, test_neg_answers, witness_graphs, completion_rules, False)
+    outfile = open('full_graph' + test_file, 'wb')
+    pickle.dump((test_pos_samples_full_graph, test_pos_answers_full_graph, test_neg_samples_full_graph, test_neg_answers_full_graph), outfile)
     outfile.close()
 
 
