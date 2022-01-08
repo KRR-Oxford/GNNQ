@@ -6,38 +6,13 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
 from fb15k237_data_utils import generate_subqueries, prep_data
+from fb15k237_eval import compute_metrics
+import json
 import pickle
 
 # Todo:
 #  - Encode unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states
 #  - Use a file to specify the head relations in the data generation procedure
-
-def compute_metrics(data, model, threshold=0.5):
-    loss = 0
-    accuracy = torchmetrics.Accuracy(threshold=threshold)
-    precision = torchmetrics.Precision(threshold=threshold)
-    recall = torchmetrics.Recall(threshold=threshold)
-    average_precision = torchmetrics.AveragePrecision()
-    model.eval()
-    for data_object in data:
-        pred = model(data_object['x'], data_object['indices_dict']).flatten()
-        pred = pred[data_object['answers']]
-        y = data_object['labels']
-        loss = loss + torch.nn.functional.binary_cross_entropy(pred,y)
-        accuracy(pred, data_object['labels'].int())
-        precision(pred, data_object['labels'].int())
-        recall(pred, data_object['labels'].int())
-        average_precision(pred, data_object['labels'].int())
-    acc = accuracy.compute().item()
-    pre = precision.compute().item()
-    re = recall.compute().item()
-    auc = average_precision.compute().item()
-    accuracy.reset()
-    precision.reset()
-    recall.reset()
-    average_precision.reset()
-    return loss, acc, pre, re, auc
-
 
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
           summary_writer=None, trial=None):
@@ -48,6 +23,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     lr_scheduler_step_size = args.lr_scheduler_step_size
     negative_slope = args.negative_slope
     hyperedge_dropout_prob = args.hyperedge_dropout_prob
+
+    with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
     model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=base_dim, shapes_dict=shapes_dict,
                  num_layers=num_layers,
