@@ -3,7 +3,7 @@ import os
 import json
 import argparse
 import torchmetrics
-from data_utils import prep_data
+from watdiv_data_utils import prep_data
 
 
 def compute_metrics(data, model, threshold=0.5):

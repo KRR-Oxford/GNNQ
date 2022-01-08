@@ -8,8 +8,8 @@ from datetime import datetime
 import json
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
-from data_utils import generate_subqueries, prep_data
-from eval import eval, compute_metrics
+from watdiv_data_utils import generate_subqueries, prep_data
+from watdiv_eval import eval, compute_metrics
 
 
 # Todo:
