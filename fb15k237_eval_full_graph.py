@@ -65,10 +65,10 @@ def create_sample(g, query, answer, witness_graphs, positive, completion_rules):
 
 def eval(g, query, bgp, answers,  aug, model_directory, summary_writer=None, threshold=0.5):
     with torch.no_grad():
-        completion_rules = rules()
         model = torch.load(os.path.join(model_directory, 'model.pt'))
         model.to(device)
         model.eval()
+        completion_rules = rules()
         for param in model.parameters():
             print(type(param.data), param.size())
         accuracy = torchmetrics.Accuracy(threshold=threshold)
