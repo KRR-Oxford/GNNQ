@@ -225,7 +225,7 @@ if __name__ == '__main__':
         model.to(device)
         for param in model.parameters():
             print(type(param.data), param.size())
-        compute_metrics(test_pos_data_objects + test_neg_data_objects, model)
+
         _, test_acc, test_pre, test_re, test_auc = compute_metrics(test_pos_data_objects + test_neg_data_objects, model)
 
         print('Testing!')
