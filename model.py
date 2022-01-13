@@ -30,7 +30,7 @@ class HGNNLayer(nn.Module):
         msgs = torch.tensor([], dtype=torch.float16)
         # Loop through all edge types -- it would make more sense to loop through shape dict and check whether edge type is an indice dict
         for edge, edge_indices in indices_dict.items():
-            if edge_indices.numel():
+            if (edge in self.shapes_dict.keys()) and edge_indices.numel():
                 i = torch.reshape(edge_indices[1], (-1, self.shapes_dict[edge]))
                 # Compute indices for scatter function
                 i = i[:, 0]

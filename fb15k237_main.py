@@ -154,6 +154,9 @@ if __name__ == '__main__':
     test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers = pickle.load(infile)
     infile.close()
 
+    for g in train_pos_samples:
+        print(len(g))
+
     if args.aug:
         subqueries, subquery_shape = generate_subqueries(query_string=args.query_string,
                                                          subquery_gen_strategy=args.subquery_gen_strategy,

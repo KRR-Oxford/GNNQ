@@ -91,15 +91,15 @@ def eval(g, query, bgp, answers,  aug, model_directory, summary_writer=None, thr
             precision(pred, data_object['labels'].int())
             recall(pred, data_object['labels'].int())
             average_precision(pred, data_object['labels'].int())
-            # acc = accuracy.compute().item()
-            # pre = precision.compute().item()
-            # re = recall.compute().item()
-            # auc = average_precision.compute().item()
-            #
-            # print('Accuracy for all answers: ' + str(acc))
-            # print('Precision for all answers: ' + str(pre))
-            # print('Recall for all answers: ' + str(re))
-            # print('AUC for all answers: ' + str(auc))
+            acc = accuracy.compute().item()
+            pre = precision.compute().item()
+            re = recall.compute().item()
+            auc = average_precision.compute().item()
+
+            print('Accuracy for all answers: ' + str(acc))
+            print('Precision for all answers: ' + str(pre))
+            print('Recall for all answers: ' + str(re))
+            print('AUC for all answers: ' + str(auc))
             counter += 1
 
 
