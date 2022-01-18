@@ -1,8 +1,6 @@
 import torch
 import argparse
 import torchmetrics
-import optuna
-from optuna.trial import TrialState
 import os
 from datetime import datetime
 import json
@@ -17,7 +15,7 @@ from watdiv_eval import eval, compute_metrics
 #  - Use a file to specify the head relations in the data generation procedure
 
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
-          summary_writer=None, trial=None):
+          summary_writer=None):
     base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
@@ -27,17 +25,8 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     positive_sample_weight = args.positive_sample_weight
     hyperedge_dropout_prob = args.hyperedge_dropout_prob
 
-    if trial:
-        base_dim = trial.suggest_int('base_dim', 8, 32)
-        num_layers = trial.suggest_int('num_layers', 2, 6)
-        learning_rate = trial.suggest_float("lr", 0.001, 0.1, step=0.001)
-        lr_scheduler_step_size = trial.suggest_int('lr_scheduler_step_size', 1, 10)
-        positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 20)
-        negative_slope = trial.suggest_float('negative_slope', 0.01, 0.2, step=0.01)
-        hyperedge_dropout_prob = trial.suggest_float('negative_slope', 0.1, 0.3, step=0.05)
-    else:
-        with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
-            json.dump(args.__dict__, f, indent=2)
+    with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
     model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=base_dim, shapes_dict=shapes_dict,
                  num_layers=num_layers,
@@ -97,13 +86,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
-        # dummy loss
-        loss = 10000
         if (epoch != 0) and (epoch % args.val_epochs == 0):
             loss, val_acc, val_pre, val_re, val_auc, val_unobserved_pre, val_unobserved_re, val_unobserved_auc = compute_metrics(
                 val_data, model, threshold)
-            if trial:
-                trial.report(loss, epoch)
             lr_scheduler.step()
 
             print('Validating!')
@@ -127,22 +112,8 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
                 summary_writer.add_scalar('AUC for unobserved answers on the validation datasets.', val_unobserved_auc,
                                           epoch)
 
-            if trial and trial.should_prune():
-                raise optuna.exceptions.TrialPruned()
+    torch.save(model, os.path.join(model_directory, 'model.pt'))
 
-    if trial:
-        torch.save(model, os.path.join(model_directory, 'trial{}.pt'.format(trial.number)))
-    else:
-        torch.save(model, os.path.join(model_directory, 'model.pt'))
-    # Why does optuna require to a return value?
-    return loss
-
-
-def objective(trial, device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args):
-    loss = train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
-                 log_directory=log_directory,
-                 model_directory=model_directory, args=args, summary_writer=None, trial=trial)
-    return loss
 
 
 if __name__ == '__main__':
@@ -155,7 +126,6 @@ if __name__ == '__main__':
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_aggr', action='store_true', default=False)
-    parser.add_argument('--hyperparam_tune', action='store_true', default=False)
     parser.add_argument('--monotonic', action='store_true', default=False)
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
     parser.add_argument('--max_num_subquery_vars', type=int, default=6)
@@ -165,9 +135,9 @@ if __name__ == '__main__':
     # Optimize
     parser.add_argument('--base_dim', type=int, default=16)
     parser.add_argument('--num_layers', type=int, default=4)
-    parser.add_argument('--epochs', type=int, default=250)
+    parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--lr', type=float, default=0.00625)
-    parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
+    parser.add_argument('--lr_scheduler_step_size', type=int, default=12)
     parser.add_argument('--negative_slope', type=float, default=0.1)
     parser.add_argument('--hyperedge_dropout_prob', type=float, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=2)
@@ -207,38 +177,12 @@ if __name__ == '__main__':
 
     # The benchmark datasets do not contain unary predicates -- therefore the initial feature vector dimension can be set to one
     feat_dim = 1
-    if not args.hyperparam_tune:
-        train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
-              log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
-              summary_writer=writer)
+    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data, val_data=val_data,
+          log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
+          summary_writer=writer)
 
-        if args.test:
-            print('Start testing')
-            eval(test_data_directories=args.test_data, model_directory=model_directory, aug=args.aug, device=device,
-                 summary_writer=writer)
+    if args.test:
+        print('Start testing')
+        eval(test_data_directories=args.test_data, model_directory=model_directory, aug=args.aug, device=device,
+             summary_writer=writer)
 
-    else:
-        study = optuna.create_study(direction='minimize', pruner=optuna.pruners.MedianPruner(
-            n_startup_trials=5, n_warmup_steps=30, interval_steps=10))
-        study.optimize(
-            lambda trial: objective(trial=trial, device=device, feat_dim=feat_dim, shapes_dict=shapes_dict,
-                                    train_data=train_data, val_data=val_data,
-                                    log_directory=log_directory, model_directory=model_directory, args=args),
-            n_trials=100)
-
-        pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
-        complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
-
-        print("Study statistics: ")
-        print("  Number of finished trials: ", len(study.trials))
-        print("  Number of pruned trials: ", len(pruned_trials))
-        print("  Number of complete trials: ", len(complete_trials))
-
-        trial = study.best_trial
-        print("Best trial is trial number {}".format(trial.number))
-
-        print("  Value: ", trial.value)
-
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print("    {}: {}".format(key, value))
