@@ -1,6 +1,6 @@
 import torch
 import os
-import copy
+import json
 import argparse
 import torchmetrics
 import pickle
@@ -43,16 +43,8 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
     for param in model.parameters():
         print(type(param.data), param.size())
 
-    # infile = open(test_data, 'rb')
-    # test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers = pickle.load(infile)
-    # infile.close()
-
-    infile = open('full_graph_posorg_test_samples_extended.pkl', 'rb')
-    test_pos_samples, test_pos_answers= pickle.load(infile)
-    infile.close()
-
-    infile = open('full_graph_negorg_test_samples_extended.pkl', 'rb')
-    test_neg_samples, test_neg_answers = pickle.load(infile)
+    infile = open(test_data, 'rb')
+    test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers = pickle.load(infile)
     infile.close()
 
     print('Positive testing samples!')
@@ -78,12 +70,13 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    parser = argparse.ArgumentParser(description='Bla bla')
+    parser = argparse.ArgumentParser()
     parser.add_argument('--log_directory', type=str, default='')
     parser.add_argument('--test_data', type=str, default='')
-    parser.add_argument('--aug', action='store_true', default=False)
     args = parser.parse_args()
 
+    with open(os.path.join(args.log_directory, 'config.txt'), 'r') as f:
+        run_args = json.load(f)
 
     eval(test_data=args.test_data, model_directory=os.path.join(args.log_directory, 'models'),
-         aug=args.aug, device=device)
+         aug=run_args['aug'], device=device)
