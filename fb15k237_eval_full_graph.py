@@ -5,7 +5,7 @@ import torchmetrics
 import pickle
 from rdflib import Graph
 from fb15k237_data_utils import create_data_object
-from create_samples_from_kg import create_witness_graphs, ground_rule, corrupt_graph, rules
+from create_samples_from_kg import create_witness_graphs, ground_rule, corrupt_graph, create_rules_dict
 
 
 def create_sample(g, query, answer, witness_graphs, positive, completion_rules):
@@ -68,7 +68,7 @@ def eval(g, query, bgp, answers,  aug, model_directory, summary_writer=None, thr
         model = torch.load(os.path.join(model_directory, 'model.pt'))
         model.to(device)
         model.eval()
-        completion_rules = rules()
+        completion_rules = create_rules_dict()
         for param in model.parameters():
             print(type(param.data), param.size())
         accuracy = torchmetrics.Accuracy(threshold=threshold)

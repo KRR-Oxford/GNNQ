@@ -22,15 +22,14 @@ def randomly_split_list(l):
     neg = list(itertools.compress(l, inversed_mask))
     return pos, neg, mask, inversed_mask
 
-
-def extract_connected_subgraph_of_khop(g, start_nodes, k=2, current_iter=0):
+def extract_connected_subgraph_of_khop(g, start_nodes, k=2, sample_prob=0.01, current_iter=0):
     nodes = set()
     for entity in start_nodes:
         for edge in nx.bfs_edges(g, source=entity, depth_limit=1):
-            if torch.bernoulli(torch.tensor([0.01])):
+            if torch.bernoulli(torch.tensor([sample_prob])):
                 nodes.add(edge[1])
     if current_iter < k:
-        return start_nodes.union(extract_connected_subgraph_of_khop(g, start_nodes.union(nodes), k, current_iter + 1))
+        return start_nodes.union(extract_connected_subgraph_of_khop(g, start_nodes.union(nodes), k, sample_prob, current_iter + 1))
     else:
         return start_nodes.union(nodes)
 
@@ -42,7 +41,7 @@ def networkx_multidigraph_to_rdflib(networkx_graph):
     return rdflib_graph
 
 
-def rules(rule_file='./rules.txt'):
+def create_rules_dict(rule_file='./rules.txt'):
     input_file = open(rule_file, "r")
     lines = input_file.readlines()
     rules_by_head_predicate = defaultdict(list)
@@ -77,68 +76,7 @@ def corrupt_graph(g, prob):
     return g
 
 
-# def create_test_sample_graphs(g, query, answers, witness_graphs, completion_rules, positive):
-#     samples = []
-#     used_answers = []
-#     for answer in answers:
-#         sample_graph = copy.deepcopy(g)
-#         sample_graph = corrupt_graph(sample_graph, 0.2)
-#         witnesses_for_answer = witness_graphs[answer]
-#         witness_triples_for_answer = Graph()
-#         for witness_for_answer, _ in witnesses_for_answer:
-#             for triple in witness_for_answer:
-#                 witness_triples_for_answer.add(triple)
-#         sample_graph = sample_graph - witness_triples_for_answer
-#         qres = witness_triples_for_answer.query(query)
-#         print(len(qres))
-#         accept = False
-#         while not accept:
-#             if positive:
-#                 # Corrupt witness such that it can be recovered with completion function -> positive sample
-#                 print('Positive sample!')
-#                 for triple in witness_triples_for_answer:
-#                     if torch.bernoulli(torch.tensor([0.8])) or (str(triple[1]) not in completion_rules.keys()):
-#                         if torch.bernoulli(torch.tensor([0.5])) and (str(triple[1]) in completion_rules.keys()):
-#                             ground_rule(witness_triples_for_answer, triple, completion_rules)
-#                     else:
-#                         witness_triples_for_answer.remove(triple)
-#                         ground_rule(witness_triples_for_answer, triple, completion_rules)
-#                 qres = witness_triples_for_answer.query(query)
-#                 print(len(qres))
-#                 if len(qres) == 0:
-#                     print('Positive sample accepted!')
-#                     samples.append(sample_graph + witness_triples_for_answer)
-#                     used_answers.append(answer)
-#                     accept = True
-#                 else:
-#                     print('Positive sample rejected!')
-#             else:
-#                 # Corrupt witness such that it can not be recovered with completion function -> negative sample
-#                 print('Negative sample!')
-#                 dummy = Graph()
-#                 for triple in witness_triples_for_answer:
-#                     if torch.bernoulli(torch.tensor([0.8])) or (str(triple[1]) not in completion_rules.keys()):
-#                         if torch.bernoulli(torch.tensor([0.75])) and (str(triple[1]) in completion_rules.keys()):
-#                             ground_rule(witness_triples_for_answer, triple, completion_rules)
-#                             # Are later removed and can be recovered
-#                             if torch.bernoulli(torch.tensor([0.5])):
-#                                 dummy.add(triple)
-#                     else:
-#                         witness_triples_for_answer.remove(triple)
-#                 qres = witness_triples_for_answer.query(query)
-#                 print(len(qres))
-#                 if len(qres) == 0:
-#                     print('Negative sample accepted!')
-#                     # Union of sample_graph and witness_graph;and removal of some triples that can be recovered
-#                     samples.append((sample_graph + witness_triples_for_answer) - dummy)
-#                     used_answers.append(answer)
-#                     accept = True
-#                 else:
-#                     print('Negative sample rejected!')
-#     return samples, used_answers
-
-
-def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, positive):
+def create_samples_graphs(g, answers, witness_graphs, witness_triples, completion_rules, positive, sampling_prob):
     g_no_witnesses = g - witness_triples
     nx_g_no_witnesses = rdflib_to_networkx_graph(g_no_witnesses)
     samples = []
@@ -150,7 +88,7 @@ def create_samples_graphs(g, answers, witness_graphs, witness_triples, completio
             print('Sample entity not contained in KG!')
             continue
         # Sample from cleaned_q + witness?
-        sample_entities = extract_connected_subgraph_of_khop(nx_g_no_witnesses, witness_entities, 2)
+        sample_entities = extract_connected_subgraph_of_khop(nx_g_no_witnesses, witness_entities, 2, sampling_prob)
         print('Sample entities')
         print(len(sample_entities))
         sample_graph = rdflib_to_networkx_multidigraph(g_no_witnesses).subgraph(list(sample_entities)).copy()
@@ -221,8 +159,8 @@ def create_witness_graphs(g, query):
     return witness_graphs, witness_triples
 
 
-def create_samples(g, query, train_file, val_file, test_file, samples_per_answer):
-    completion_rules = rules()
+def create_samples(g, rule_file, query, train_file, val_file, test_file, samples_per_answer, sampling_prob):
+    completion_rules = create_rules_dict(rule_file)
     witness_graphs, witness_triples = create_witness_graphs(g, query)
     answers = list(witness_graphs.keys())
     train_answers, test_answers, _, _ = randomly_split_list(answers)
@@ -249,54 +187,47 @@ def create_samples(g, query, train_file, val_file, test_file, samples_per_answer
 
     # Train samples!
     train_pos_samples, train_pos_answers = create_samples_graphs(g, train_pos_answers, witness_graphs,
-                                                                 witness_triples, completion_rules, True)
+                                                                 witness_triples, completion_rules, True, sampling_prob)
     train_neg_samples, train_neg_answers = create_samples_graphs(g, train_neg_answers, witness_graphs,
-                                                                 witness_triples, completion_rules, False)
+                                                                 witness_triples, completion_rules, False, sampling_prob)
     outfile = open(train_file, 'wb')
     pickle.dump((train_pos_samples, train_pos_answers, train_neg_samples, train_neg_answers), outfile)
     outfile.close()
 
     # Val samples!
     val_pos_samples, val_pos_answers = create_samples_graphs(g, val_pos_answers, witness_graphs,
-                                                             witness_triples, completion_rules, True)
+                                                             witness_triples, completion_rules, True, sampling_prob)
     val_neg_samples, val_neg_answers = create_samples_graphs(g, val_neg_answers, witness_graphs,
-                                                             witness_triples, completion_rules, False)
+                                                             witness_triples, completion_rules, False, sampling_prob)
     outfile = open(val_file, 'wb')
     pickle.dump((val_pos_samples, val_pos_answers, val_neg_samples, val_neg_answers), outfile)
     outfile.close()
 
     # Test samples!
     test_pos_samples, test_pos_answers = create_samples_graphs(g, test_pos_answers, witness_graphs,
-                                                               witness_triples, completion_rules, True)
+                                                               witness_triples, completion_rules, True, sampling_prob)
     test_neg_samples, test_neg_answers = create_samples_graphs(g, test_neg_answers, witness_graphs,
-                                                               witness_triples, completion_rules, False)
+                                                               witness_triples, completion_rules, False, sampling_prob)
     outfile = open(test_file, 'wb')
     pickle.dump((test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers), outfile)
     outfile.close()
-
-    # test_pos_samples_full_graph, test_pos_answers_full_graph = create_test_sample_graphs(g, query, test_pos_answers, witness_graphs, completion_rules, True)
-    # outfile = open('full_graph_pos' + test_file, 'wb')
-    # pickle.dump((test_pos_samples_full_graph, test_pos_answers_full_graph), outfile)
-    # outfile.close()
-    # test_neg_samples_full_graph, test_neg_answers_full_graph = create_test_sample_graphs(g, query, test_neg_answers, witness_graphs, completion_rules, False)
-    # outfile = open('full_graph_neg' + test_file, 'wb')
-    # pickle.dump((test_neg_samples_full_graph, test_neg_answers_full_graph), outfile)
-    # outfile.close()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--query_string', type=str)
     parser.add_argument('--graph', type=str)
+    parser.add_argument('--rule_file', type=str)
     parser.add_argument('--train_file', type=str)
     parser.add_argument('--val_file', type=str)
     parser.add_argument('--test_file', type=str)
     parser.add_argument('--samples_per_answer', type=int)
+    parser.add_argument('--sampling_prob', type=float)
     args = parser.parse_args()
     graph = args.graph
 
     g = Graph()
     g.parse(graph, format="nt")
 
-    create_samples(g, args.query_string, args.train_file, args.val_file, args.test_file, args.samples_per_answer)
+    create_samples(g, args.rule_file, args.query_string, args.train_file, args.val_file, args.test_file, args.samples_per_answer, args.sampling_prob)
     print('Done')
