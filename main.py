@@ -5,10 +5,11 @@ import os
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
-from fb15k237_data_utils import generate_subqueries, prep_data
-from fb15k237_eval import compute_metrics
+from data_utils import generate_subqueries, prep_data
+from eval import compute_metrics
 import json
-import pickle
+from load_watdiv import load_watdiv_benchmark
+from load_fb15k237 import load_fb15k237_benchmark
 
 # Todo:
 #  - Encode unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states
@@ -54,50 +55,59 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
         print('Training!')
         for data_object in batch:
-            pred = model(data_object['x'], data_object['indices_dict'], logits=True).flatten()
-            pred = pred[data_object['answers']]
+            pred = model(data_object['feat'], data_object['indices_dict'], logits=True).flatten()
+            pred = pred[data_object['nodes']]
             y = data_object['labels']
-            loss = torch.nn.functional.binary_cross_entropy_with_logits(pred,y)
+            sample_weights_train = args.positive_sample_weight * y + (torch.ones(len(y)) - y)
+            loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, y, weight=sample_weights_train)
             loss.backward()
             total_train_loss = total_train_loss + loss
             # print('Loss: ' + str(loss.item()))
             pred = torch.sigmoid(pred)
-            train_accuracy(pred, data_object['labels'].int())
-            train_precision(pred, data_object['labels'].int())
-            train_recall(pred, data_object['labels'].int())
+            train_accuracy(pred, y.int())
+            train_precision(pred, y.int())
+            train_recall(pred, y.int())
         optimizer.step()
         print('Loss: ' + str(total_train_loss.item()))
 
         acc = train_accuracy.compute().item()
         pre = train_precision.compute().item()
         re = train_recall.compute().item()
-        print('Accuracy for all answers: ' + str(acc))
-        print('Precision for all answers: ' + str(pre))
-        print('Recall for all answers: ' + str(re))
+        print('Accuracy for all samples: ' + str(acc))
+        print('Precision for all samples: ' + str(pre))
+        print('Recall for all samples: ' + str(re))
         if summary_writer:
-            summary_writer.add_scalar('Loss for all answers on the training datasets.', total_train_loss, epoch)
-            summary_writer.add_scalar('Precision for all answers on the training datasets.', pre, epoch)
-            summary_writer.add_scalar('Recall for all answers on the training datasets.', re, epoch)
+            summary_writer.add_scalar('Loss for all training samples.', total_train_loss, epoch)
+            summary_writer.add_scalar('Precision for all training samples.', pre, epoch)
+            summary_writer.add_scalar('Recall for all training samples.', re, epoch)
         train_accuracy.reset()
         train_precision.reset()
         train_recall.reset()
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            loss, val_acc, val_pre, val_re, val_auc = compute_metrics(
+            loss, val_acc, val_pre, val_re, val_auc, val_unobserved_pre, val_unobserved_re, val_unobserved_auc = compute_metrics(
                 val_data, model, threshold)
             lr_scheduler.step()
 
             print('Validating!')
             print('Validation loss: ' + str(loss.item()))
-            print('Accuracy for all answers: ' + str(val_acc))
-            print('Precision for all answers:  ' + str(val_pre))
-            print('Recall for all answers: ' + str(val_re))
-            print('AUC for all answers: ' + str(val_auc))
-
+            print('Accuracy for all samples: ' + str(val_acc))
+            print('Precision for all samples:  ' + str(val_pre))
+            print('Recall for all samples: ' + str(val_re))
+            print('AUC for all samples: ' + str(val_auc))
+            print('Precision for unmasked samples:  ' + str(val_unobserved_pre))
+            print('Recall for unmasked samples: ' + str(val_unobserved_re))
+            print('AUC for unmasked samples: ' + str(val_unobserved_auc))
             if summary_writer:
-                summary_writer.add_scalar('Loss for all answers on the validation datasets.', loss, epoch)
-                summary_writer.add_scalar('Precision for all answers on the validation datasets.', val_pre, epoch)
-                summary_writer.add_scalar('Recall for all answers on the validation datasets.', val_re, epoch)
-                summary_writer.add_scalar('AUC for all answers on the validation datasets.', val_auc, epoch)
+                summary_writer.add_scalar('Loss for all validations samples.', loss, epoch)
+                summary_writer.add_scalar('Precision for all validations samples.', val_pre, epoch)
+                summary_writer.add_scalar('Recall for all validations samples.', val_re, epoch)
+                summary_writer.add_scalar('AP for all all validations samples.', val_auc, epoch)
+                summary_writer.add_scalar('Precision for unmasked validation samples.',
+                                          val_unobserved_pre, epoch)
+                summary_writer.add_scalar('Recall for unmasked validation samples.',
+                                          val_unobserved_re, epoch)
+                summary_writer.add_scalar('AP for unmasked validation samples.', val_unobserved_auc,
+                                          epoch)
 
     torch.save(model, os.path.join(model_directory, 'model.pt'))
 
@@ -105,9 +115,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--query_string', type=str)
-    parser.add_argument('--train_data', type=str)
-    parser.add_argument('--val_data', type=str)
-    parser.add_argument('--test_data', type=str)
+    parser.add_argument('--train_data', type=str, nargs='+')
+    parser.add_argument('--val_data', type=str, nargs='+')
+    parser.add_argument('--test_data', type=str, nargs='+')
     parser.add_argument('--log_dir', type=str, default='runs/')
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
@@ -117,7 +127,7 @@ if __name__ == '__main__':
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
     parser.add_argument('--max_num_subquery_vars', type=int, default=6)
     parser.add_argument('--subquery_depth', type=int, default=2)
-    parser.add_argument('--batch_size', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=40)
     parser.add_argument('--val_epochs', type=int, default=10)
     # Optimize
     parser.add_argument('--base_dim', type=int, default=16)
@@ -127,7 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
     parser.add_argument('--negative_slope', type=float, default=0.1)
     parser.add_argument('--hyperedge_dropout_prob', type=float, default=0.1)
-    parser.add_argument('--positive_sample_weight', type=int, default=2)
+    parser.add_argument('--positive_sample_weight', type=int, default=1)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -142,20 +152,15 @@ if __name__ == '__main__':
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
 
-    infile = open(args.train_data, 'rb')
-    train_pos_samples, train_pos_answers, train_neg_samples, train_neg_answers = pickle.load(infile)
-    infile.close()
+    if 'fb15k237' in args.train_data[0]:
+        train_samples, train_nodes, train_labels, train_masks, graphs = load_fb15k237_benchmark(args.train_data[0])
+        val_samples, val_nodes, val_labels, val_masks, graphs = load_fb15k237_benchmark(args.val_data[0])
+        test_samples, test_nodes, test_labels, test_masks, graphs = load_fb15k237_benchmark(args.test_data[0])
+    else:
+        train_samples, train_nodes, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data, args.query_string)
+        val_samples, val_nodes, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
+        test_samples, test_nodes, test_labels, test_masks, graphs = load_watdiv_benchmark(args.test_data, args.query_string)
 
-    infile = open(args.val_data, 'rb')
-    val_pos_samples, val_pos_answers, val_neg_samples, val_neg_answers = pickle.load(infile)
-    infile.close()
-
-    infile = open(args.test_data, 'rb')
-    test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers = pickle.load(infile)
-    infile.close()
-
-    for g in train_pos_samples:
-        print(len(g))
 
     if args.aug:
         subqueries, subquery_shape = generate_subqueries(query_string=args.query_string,
@@ -163,54 +168,36 @@ if __name__ == '__main__':
                                                          subquery_depth=args.subquery_depth,
                                                          max_num_subquery_vars=args.max_num_subquery_vars)
 
-        print('Positive training samples!')
-        train_pos_data_objects = prep_data(1,train_pos_samples, train_pos_answers, aug=args.aug,
-                               subqueries=subqueries)
-        print('Negative training samples!')
-        train_neg_data_objects = prep_data(0,train_neg_samples, train_neg_answers, aug=args.aug,
-                             subqueries=subqueries)
-        print('Positive validation samples!')
-        val_pos_data_objects = prep_data(1, val_pos_samples, val_pos_answers, aug=args.aug,
-                                          subqueries=subqueries)
-        print('Negative validation samples!')
-        val_neg_data_objects = prep_data(0, val_neg_samples, val_neg_answers, aug=args.aug,
-                                          subqueries=subqueries)
-        print('Positive testing samples!')
-        test_pos_data_objects = prep_data(1,test_pos_samples, test_pos_answers, aug=args.aug,
-                                           subqueries=subqueries)
-        print('Negative testing samples!')
-        test_neg_data_objects = prep_data(0,test_neg_samples, test_neg_answers, aug=args.aug,
-                                           subqueries=subqueries)
+        print('Training samples!')
+        train_data_objects = prep_data(train_labels, train_samples, train_nodes, train_masks, aug=args.aug,
+                                       subqueries=subqueries)
+        print('Validation samples!')
+        val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
+                                     subqueries=subqueries)
+        print('Testing samples!')
+        test_data_objects = prep_data(test_labels, test_samples, test_nodes, test_masks, aug=args.aug,
+                                      subqueries=subqueries)
 
         rels = set()
-        for d in train_pos_data_objects + train_neg_data_objects + val_pos_data_objects + val_neg_data_objects + test_pos_data_objects + test_neg_data_objects:
+        for d in train_data_objects + val_data_objects + test_data_objects:
             for k in d['indices_dict'].keys():
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
         shapes_dict = {**shapes_dict, **subquery_shape}
     else:
         subqueries = None
-        print('Positive training samples!')
-        train_pos_data_objects = prep_data(1, train_pos_samples, train_pos_answers, aug=args.aug,
-                                           subqueries=subqueries)
-        print('Negative training samples!')
-        train_neg_data_objects = prep_data(0, train_neg_samples, train_neg_answers, aug=args.aug,
-                                           subqueries=subqueries)
-        print('Positive validation samples!')
-        val_pos_data_objects = prep_data(1, val_pos_samples, val_pos_answers, aug=args.aug,
-                                         subqueries=subqueries)
-        print('Negative validation samples!')
-        val_neg_data_objects = prep_data(0, val_neg_samples, val_neg_answers, aug=args.aug,
-                                         subqueries=subqueries)
-        print('Positive testing samples!')
-        test_pos_data_objects = prep_data(1, test_pos_samples, test_pos_answers, aug=args.aug,
-                                          subqueries=subqueries)
-        print('Negative testing samples!')
-        test_neg_data_objects = prep_data(0, test_neg_samples, test_neg_answers, aug=args.aug,
-                                          subqueries=subqueries)
+        print('Training samples!')
+        train_data_objects = prep_data(train_labels, train_samples, train_nodes, train_masks, aug=args.aug,
+                                       subqueries=subqueries)
+        print('Validation samples!')
+        val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
+                                     subqueries=subqueries)
+        print('Testing samples!')
+        test_data_objects = prep_data(test_labels, test_samples, test_nodes, test_masks, aug=args.aug,
+                                      subqueries=subqueries)
 
         rels = set()
-        for d in train_pos_data_objects + train_neg_data_objects  + val_pos_data_objects + val_neg_data_objects +  test_pos_data_objects + test_neg_data_objects:
+        for d in train_data_objects + val_data_objects + test_data_objects:
             for k in d['indices_dict'].keys():
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
@@ -218,7 +205,7 @@ if __name__ == '__main__':
     # The benchmark datasets do not contain unary predicates -- therefore the initial feature vector dimension can be set to one
     feat_dim = 1
 
-    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_pos_data_objects+train_neg_data_objects, val_data=val_pos_data_objects+val_neg_data_objects,
+    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data_objects, val_data=val_data_objects,
           log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
           summary_writer=writer)
 
@@ -229,11 +216,14 @@ if __name__ == '__main__':
         for param in model.parameters():
             print(type(param.data), param.size())
 
-        _, test_acc, test_pre, test_re, test_auc = compute_metrics(test_pos_data_objects + test_neg_data_objects, model)
+        _, test_acc, test_pre, test_re, test_auc, test_unobserved_pre, test_unobserved_re, test_unobserved_auc = compute_metrics(test_data_objects, model)
 
         print('Testing!')
-        print('Accuracy for all answers: ' + str(test_acc))
-        print('Precision for all answers: ' + str(test_pre))
-        print('Recall for all answers: ' + str(test_re))
-        print('AUC for all answers: ' + str(test_auc))
+        print('Accuracy for all testing samples: ' + str(test_acc))
+        print('Precision for all testing samples: ' + str(test_pre))
+        print('Recall for all testing samples: ' + str(test_re))
+        print('AP for all testing samples: ' + str(test_auc))
+        print('Precision for unmasked testing samples: ' + str(test_unobserved_pre))
+        print('Recall for unmasked testing samples: ' + str(test_unobserved_re))
+        print('AP for unmasked testing samples: ' + str(test_unobserved_auc))
 

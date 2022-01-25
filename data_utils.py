@@ -54,9 +54,9 @@ def compute_subquery_answers(graph, entity2id, subqueries):
         answers = []
         for row in qres:
             answers.append([entity2id[str(entity).strip()] for entity in row])
-        # print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter,
-        #                                                                             len(subqueries)))
-        counter = counter + 1
+        print('Subquery {0} has {1} answers. ({2}/{3}) subqueries answered!'.format(counter, len(answers), counter,
+                                                                                    len(subqueries)))
+        counter += 1
         subquery = subquery.replace(".", "")
         if not answers:
             subquery_answers[subquery] = torch.tensor([])
@@ -67,38 +67,38 @@ def compute_subquery_answers(graph, entity2id, subqueries):
             (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
     return subquery_answers
 
-def create_y_vector(answers, num_nodes):
-    # k-hot vector indicating all answers
-    y = torch.scatter(torch.zeros(num_nodes, dtype=torch.float32), 0, torch.tensor(answers),
-                      torch.ones(num_nodes, dtype=torch.float32))
-    return y
-
-def create_data_object(labels, graph, answers, aug, subqueries):
-    indices_dict, entity2id, _ = create_indices_dict(graph)
+def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, graph=None):
+    entity2id = None
+    if graph:
+        _, entity2id, _ = create_indices_dict(graph)
+    indices_dict, entity2id, _ = create_indices_dict(sample_graph, entity2id)
     num_nodes = len(entity2id)
     # dummy feature vector dimension
     feat_dim = 1
-    # Filter out samples that lost answer entity during corruption - this logic should be moved to the creation of the benchmark
+    # Data object might be None if the answer entity is not contained in the sample graph!
     try:
-        x = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
-        answers = [entity2id[str(answer)] for answer in answers]
+        feat = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
+        nodes = [entity2id[str(node)] for node in nodes]
         if aug:
-            hyper_indices_dict = compute_subquery_answers(graph=graph, entity2id=entity2id, subqueries=subqueries)
+            hyper_indices_dict = compute_subquery_answers(graph=sample_graph, entity2id=entity2id, subqueries=subqueries)
             indices_dict = {**indices_dict, **hyper_indices_dict}
-        return {'indices_dict': indices_dict, 'x': x, 'answers': torch.tensor(answers), 'labels': torch.tensor(labels,dtype=torch.float)}
+        return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat, 'labels': torch.tensor(labels, dtype=torch.float), 'mask':mask}
     except KeyError:
-        print('Answer not in sample!')
+        print('Failed to create data object!')
         return None
 
 
-def prep_data(pos, graphs, answers, aug, subqueries=None):
+def prep_data(labels, sample_graphs, nodes, masks, aug, subqueries=None, graphs=None):
     data = []
     c = 0
-    for graph in graphs:
-        data_object = create_data_object([pos], graph, [answers[c]], aug=aug, subqueries=subqueries)
-        # Filter out samples that lost answer entity during corruption - this logic should be moved to the creation of the benchmark
+    for sample_graph in sample_graphs:
+        if graphs:
+            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug, subqueries=subqueries, graph=graphs[c])
+        else:
+            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug, subqueries=subqueries)
+        # Data object might be None if the answer entity is not contained in the sample graph!
+        c += 1
         if data_object:
             data.append(data_object)
-            print('Loaded {0}/{1} samples!'.format(c, len(graphs)))
-        c += 1
+            print('Loaded {0}/{1} samples!'.format(c, len(sample_graphs)))
     return data

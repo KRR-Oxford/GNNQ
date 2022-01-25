@@ -2,10 +2,10 @@ import torch
 import os
 import argparse
 import torchmetrics
-import pickle
 from rdflib import Graph
-from fb15k237_data_utils import create_data_object
+from data_utils import create_data_object
 from create_samples_from_kg import create_witness_graphs, ground_rule, corrupt_graph, create_rules_dict
+from load_fb15k237 import load_fb15k237_benchmark
 import re
 import json
 
@@ -70,9 +70,8 @@ def create_sample(g, query, answer, witness_graphs, positive, completion_rules):
 
 
 
-def eval(g, query, answers,  aug, model_directory, summary_writer=None, threshold=0.5):
+def eval(g, answers,  aug, model, summary_writer=None, threshold=0.5):
     with torch.no_grad():
-        model = torch.load(os.path.join(model_directory, 'models/model.pt'))
         model.to(device)
         model.eval()
         completion_rules = create_rules_dict()
@@ -82,13 +81,13 @@ def eval(g, query, answers,  aug, model_directory, summary_writer=None, threshol
         precision = torchmetrics.Precision(threshold=threshold)
         recall = torchmetrics.Recall(threshold=threshold)
         average_precision = torchmetrics.AveragePrecision()
-        bgp = create_bgp_query_from_monadic_query(query)
+        bgp = create_bgp_query_from_monadic_query(model.query_string)
         witness_graphs, _ = create_witness_graphs(g, bgp)
         counter = 1
         for answer in answers:
             print('Computed ({0}/{1}) samples!'.format(counter, len(answers)))
             label = torch.bernoulli(torch.tensor([0.5]))
-            sample = create_sample(g, query, answer, witness_graphs, label, completion_rules)
+            sample = create_sample(g, model.query_string, answer, witness_graphs, label, completion_rules)
             data_object = create_data_object([label], sample, [answer], aug, model.subqueries)
             if data_object == None:
                 counter += 1
@@ -138,7 +137,7 @@ if __name__ == '__main__':
     parser.add_argument('--graph', type=str)
     parser.add_argument('--query', type=str, default='')
     parser.add_argument('--log_directory', type=str, default='')
-    parser.add_argument('--test_data', type=str, default='')
+    parser.add_argument('--test_data', type=str, nargs='+')
     args = parser.parse_args()
 
     g = Graph()
@@ -147,8 +146,8 @@ if __name__ == '__main__':
     with open(os.path.join(args.log_directory, 'config.txt'), 'r') as f:
         run_args = json.load(f)
 
-    infile = open(args.test_data, 'rb')
-    test_pos_samples, test_pos_answers, test_neg_samples, test_neg_answers = pickle.load(infile)
-    infile.close()
+    test_samples, test_answers, test_labels, mask_observed, graphs = load_fb15k237_benchmark(args.test_data[0])
 
-    eval(g, args.query, test_pos_answers+test_neg_answers, run_args['aug'], args.log_directory)
+    model = torch.load(os.path.join(args.log_directory, 'models/model.pt'))
+
+    eval(g, test_answers, run_args['aug'], model)
