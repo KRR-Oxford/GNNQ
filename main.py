@@ -6,7 +6,7 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
 from data_utils import generate_subqueries, prep_data
-from eval import compute_metrics
+from eval import eval, compute_metrics
 import json
 from load_watdiv import load_watdiv_benchmark
 from load_fb15k237 import load_fb15k237_benchmark
@@ -16,21 +16,19 @@ from load_fb15k237 import load_fb15k237_benchmark
 #  - Use a file to specify the head relations in the data generation procedure
 
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
-          summary_writer=None, trial=None):
+          summary_writer=None):
     base_dim = args.base_dim
     num_layers = args.num_layers
     epochs = args.epochs
     learning_rate = args.lr
     lr_scheduler_step_size = args.lr_scheduler_step_size
     negative_slope = args.negative_slope
-    hyperedge_dropout_prob = args.hyperedge_dropout_prob
 
     with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
     model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=base_dim, shapes_dict=shapes_dict,
-                 num_layers=num_layers,
-                 negative_slope=negative_slope, hyperedge_dropout_prob=hyperedge_dropout_prob, max_aggr=args.max_aggr,
+                 num_layers=num_layers, negative_slope=negative_slope, max_aggr=args.max_aggr,
                  monotonic=args.monotonic, subqueries=subqueries)
 
     model.to(device)
@@ -93,10 +91,10 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
             print('Accuracy for all samples: ' + str(val_acc))
             print('Precision for all samples:  ' + str(val_pre))
             print('Recall for all samples: ' + str(val_re))
-            print('AUC for all samples: ' + str(val_auc))
+            print('AP for all samples: ' + str(val_auc))
             print('Precision for unmasked samples:  ' + str(val_unobserved_pre))
             print('Recall for unmasked samples: ' + str(val_unobserved_re))
-            print('AUC for unmasked samples: ' + str(val_unobserved_auc))
+            print('AP for unmasked samples: ' + str(val_unobserved_auc))
             if summary_writer:
                 summary_writer.add_scalar('Loss for all validations samples.', loss, epoch)
                 summary_writer.add_scalar('Precision for all validations samples.', val_pre, epoch)
@@ -122,7 +120,6 @@ if __name__ == '__main__':
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_aggr', action='store_true', default=False)
-    parser.add_argument('--hyperparam_tune', action='store_true', default=False)
     parser.add_argument('--monotonic', action='store_true', default=False)
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
     parser.add_argument('--max_num_subquery_vars', type=int, default=6)
@@ -136,7 +133,6 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.00625)
     parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
     parser.add_argument('--negative_slope', type=float, default=0.1)
-    parser.add_argument('--hyperedge_dropout_prob', type=float, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=1)
     args = parser.parse_args()
 
@@ -211,19 +207,6 @@ if __name__ == '__main__':
 
     if args.test:
         print('Start Testing!')
-        model = torch.load(os.path.join(model_directory, 'model.pt'))
-        model.to(device)
-        for param in model.parameters():
-            print(type(param.data), param.size())
-
-        _, test_acc, test_pre, test_re, test_auc, test_unobserved_pre, test_unobserved_re, test_unobserved_auc = compute_metrics(test_data_objects, model)
-
-        print('Testing!')
-        print('Accuracy for all testing samples: ' + str(test_acc))
-        print('Precision for all testing samples: ' + str(test_pre))
-        print('Recall for all testing samples: ' + str(test_re))
-        print('AP for all testing samples: ' + str(test_auc))
-        print('Precision for unmasked testing samples: ' + str(test_unobserved_pre))
-        print('Recall for unmasked testing samples: ' + str(test_unobserved_re))
-        print('AP for unmasked testing samples: ' + str(test_unobserved_auc))
+        eval(test_data=args.test_data, model_directory=os.path.join(args.log_directory, 'models'),
+             aug=args.aug, device=device, summary_writer=writer)
 

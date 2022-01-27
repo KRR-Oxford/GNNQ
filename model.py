@@ -64,11 +64,9 @@ class HGNNLayer(nn.Module):
 
 
 class HGNN(nn.Module):
-    def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.1,
-                 hyperedge_dropout_prob=0.1, max_aggr=False, monotonic=False, subqueries=None):
+    def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.1, max_aggr=False, monotonic=False, subqueries=None):
         super().__init__()
         self.shapes_dict = shapes_dict
-        self.hyperedge_dropout_prob = hyperedge_dropout_prob
         self.query_string = query_string
         self.subqueries = subqueries
         self.num_layers = num_layers
@@ -88,14 +86,6 @@ class HGNN(nn.Module):
     def forward(self, x, indices_dict, logits=False):
         if self.monotonic:
             self.clamp_negative_weights()
-        # Randomly leave out some hyper-edges -- at the moment I leave out all edges for the same edge type at ones
-        if self.training and self.hyperedge_dropout_prob:
-            dict = {}
-            for k, v in indices_dict.items():
-                if self.shapes_dict[k] == 1 or torch.bernoulli(p=1 - self.hyperedge_dropout_prob,
-                                                               input=torch.tensor([0])).item() == 1:
-                    dict[k] = v
-            indices_dict = dict
         # Message passing layers
         for i in range(self.num_layers - 1):
             x = self.msg_layers[i](x, indices_dict)
