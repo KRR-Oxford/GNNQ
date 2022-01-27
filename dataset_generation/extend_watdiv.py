@@ -2,52 +2,62 @@ import torch
 import os
 import pickle
 import uuid
+import random
 from rdflib import Graph, URIRef
 from argparse import ArgumentParser
+from collections import defaultdict
+
+def generate_rules(head_predicates, num_rules=3, max_length=2):
+    rules_dict = defaultdict(list)
+    for predicate in head_predicates:
+        for i in range(num_rules):
+            body_predicate = predicate + "_" +str(uuid.uuid4())
+            l = torch.randint(low=1, high=max_length + 1, size=(1,)).item()
+            rule_body = []
+            for j in range(1,l + 1):
+                rule_body.append(body_predicate + "_{}".format(j))
+            rules_dict[predicate].append(rule_body)
+    with open('../datasets/watdiv/rules_dict.pickle', 'wb') as f:
+        pickle.dump(dict(rules_dict), f)
 
 # Todo: Change function to randomly delete edges from the graph
-def corrupt_graph(head_relations, data_directory, max_path_length, drop_prop,
-                  path_length_dict_directory=None):
-    save_dict = False
+def corrupt_graph(data_directory, drop_prop):
     g = Graph()
     g.parse(os.path.join(data_directory, 'graph.nt'), format="nt")
-    if not path_length_dict_directory:
-        path_length_dict = {}
-        for r in head_relations:
-            path_length = torch.randint(low=1, high=max_path_length + 1, size=(1,)).item()
-            path_length_dict[str(r)] = path_length
-        save_dict = True
-    else:
-        with open(os.path.join(path_length_dict_directory, 'path_length_dict.pickle'), 'rb') as f:
-            path_length_dict = pickle.load(f)
-        assert len(head_relations) == len(path_length_dict)
+    with open('../datasets/watdiv/rules_dict.pickle', 'rb') as f:
+        rules_dict = pickle.load(f)
     for s, p, o in g:
-        if str(p) in head_relations:
-            path_length = path_length_dict[str(p)]
-            if path_length == 1:
-                g.add((s, URIRef(str(p) + str(1)), o))
+        if str(p) in rules_dict.keys():
+            rule_body = random.choice(rules_dict[str(p)])
+            grounded_predicates = Graph()
+            if len(rule_body) == 1:
+                grounded_predicates.add((s, URIRef(rule_body[0]), o))
             else:
                 new_object = URIRef("http://dummyentities.com/" + str(uuid.uuid4()))
-                g.add((s, URIRef(str(p) + str(1)), new_object))
+                grounded_predicates.add((s, URIRef(rule_body[0]), new_object))
                 new_subject = new_object
-                for j in range(2, path_length):
+                for j in range(1, len(rule_body) - 1):
                     new_object = URIRef("http://dummyentities.com/" + str(uuid.uuid4()))
-                    g.add((new_subject, URIRef(str(p) + str(j)), new_object))
+                    grounded_predicates.add((new_subject, URIRef(rule_body[j]), new_object))
                     new_subject = new_object
-                g.add((new_subject, URIRef(str(p) + str(path_length)), o))
-            drop = torch.bernoulli(p=drop_prop, input=torch.tensor([0])).item() == 1
+                grounded_predicates.add((new_subject, URIRef(rule_body[len(rule_body) - 1]), o))
+            drop = torch.bernoulli(torch.tensor([drop_prop])).item() == 1
             if drop:
                 g.remove((s, p, o))
+                for triple in grounded_predicates:
+                    g.add(triple)
+            else:
+                if torch.bernoulli(torch.tensor([0.5])):
+                    for triple in grounded_predicates:
+                        g.add(triple)
+
+
     g.serialize(destination=os.path.join(data_directory, 'corrupted_graph.nt'), format='nt')
-    if save_dict:
-        with open(os.path.join(data_directory, 'path_length_dict.pickle'), 'wb') as f:
-            pickle.dump(path_length_dict, f)
-    return path_length_dict
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--data_dir', help="File with all the rules", default='../datasets/wsdbm-data-model-v1/dataset1')
+    parser.add_argument('--data_dir', help="File with all the rules", default='../datasets/watdiv/dataset7')
     args = parser.parse_args()
 
     # Remember to use the same path_length_dict for all datasets
@@ -58,5 +68,6 @@ if __name__ == '__main__':
          'http://xmlns.com/foaf/homepage', 'http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase',
          'http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor', 'http://purl.org/stuff/rev#hasReview',
          'http://purl.org/stuff/rev#totalVotes']
-    path_length_dict = corrupt_graph(rels, args.data_dir, 2, 0.1)
+    path_length_dict = corrupt_graph(args.data_dir, 0.2)
+    # generate_rules(rels)
     print('Done')
