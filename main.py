@@ -21,7 +21,6 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     num_layers = args.num_layers
     epochs = args.epochs
     learning_rate = args.lr
-    lr_scheduler_step_size = args.lr_scheduler_step_size
     negative_slope = args.negative_slope
 
     with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
@@ -37,7 +36,6 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
     # Adam optimizer already updates the learning rate
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_scheduler_step_size, gamma=0.5)
 
     # Needs to be defined as module in the HGNN class to automatically move to GPU
     threshold = 0.5
@@ -46,7 +44,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     train_recall = torchmetrics.Recall(threshold=threshold)
 
     for epoch in range(epochs):
-        print('Epoch-{0} with lr {1}'.format(epoch, lr_scheduler.get_last_lr()))
+        print('Epoch-{0}!'.format(epoch))
         model.train()
         optimizer.zero_grad()
         total_train_loss = 0
@@ -84,7 +82,6 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         if (epoch != 0) and (epoch % args.val_epochs == 0):
             loss, val_acc, val_pre, val_re, val_auc, val_unobserved_pre, val_unobserved_re, val_unobserved_auc = compute_metrics(
                 val_data, model, threshold)
-            lr_scheduler.step()
 
             print('Validating!')
             print('Validation loss: ' + str(loss.item()))
@@ -130,8 +127,7 @@ if __name__ == '__main__':
     parser.add_argument('--base_dim', type=int, default=16)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
-    parser.add_argument('--lr', type=float, default=0.00625)
-    parser.add_argument('--lr_scheduler_step_size', type=int, default=10)
+    parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--negative_slope', type=float, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=1)
     args = parser.parse_args()
@@ -151,11 +147,9 @@ if __name__ == '__main__':
     if 'fb15k237' in args.train_data[0]:
         train_samples, train_nodes, train_labels, train_masks, graphs = load_fb15k237_benchmark(args.train_data[0])
         val_samples, val_nodes, val_labels, val_masks, graphs = load_fb15k237_benchmark(args.val_data[0])
-        test_samples, test_nodes, test_labels, test_masks, graphs = load_fb15k237_benchmark(args.test_data[0])
     else:
         train_samples, train_nodes, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data, args.query_string)
         val_samples, val_nodes, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
-        test_samples, test_nodes, test_labels, test_masks, graphs = load_watdiv_benchmark(args.test_data, args.query_string)
 
 
     if args.aug:
@@ -170,12 +164,9 @@ if __name__ == '__main__':
         print('Validation samples!')
         val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
                                      subqueries=subqueries)
-        print('Testing samples!')
-        test_data_objects = prep_data(test_labels, test_samples, test_nodes, test_masks, aug=args.aug,
-                                      subqueries=subqueries)
 
         rels = set()
-        for d in train_data_objects + val_data_objects + test_data_objects:
+        for d in train_data_objects + val_data_objects:
             for k in d['indices_dict'].keys():
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
@@ -188,12 +179,9 @@ if __name__ == '__main__':
         print('Validation samples!')
         val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
                                      subqueries=subqueries)
-        print('Testing samples!')
-        test_data_objects = prep_data(test_labels, test_samples, test_nodes, test_masks, aug=args.aug,
-                                      subqueries=subqueries)
 
         rels = set()
-        for d in train_data_objects + val_data_objects + test_data_objects:
+        for d in train_data_objects + val_data_objects:
             for k in d['indices_dict'].keys():
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
@@ -207,6 +195,5 @@ if __name__ == '__main__':
 
     if args.test:
         print('Start Testing!')
-        eval(test_data=args.test_data, model_directory=os.path.join(args.log_directory, 'models'),
-             aug=args.aug, device=device, summary_writer=writer)
+        eval(test_data=args.test_data, model_directory=model_directory, aug=args.aug, device=device, summary_writer=writer)
 
