@@ -87,26 +87,27 @@ def eval(g, answers,  aug, model, summary_writer=None, threshold=0.5):
         for answer in answers:
             print('Computed ({0}/{1}) samples!'.format(counter, len(answers)))
             label = torch.bernoulli(torch.tensor([0.5]))
-            sample = create_sample(g, model.query_string, answer, witness_graphs, label, completion_rules)
-            data_object = create_data_object([label], sample, [answer], aug, model.subqueries)
+            sample = create_sample(g, model.query_string, answer[0], witness_graphs, label, completion_rules)
+            data_object = create_data_object([label], sample, answer, [True], aug, model.subqueries)
             if data_object == None:
                 counter += 1
                 continue
-            pred = model(data_object['x'], data_object['indices_dict']).flatten()
-            pred = pred[data_object['answers']]
-            accuracy(pred, data_object['labels'].int())
-            precision(pred, data_object['labels'].int())
-            recall(pred, data_object['labels'].int())
-            average_precision(pred, data_object['labels'].int())
+            pred = model(data_object['feat'], data_object['indices_dict']).flatten()
+            pred = pred[data_object['nodes']]
+            y = data_object['labels'].int()
+            accuracy(pred, y)
+            precision(pred, y)
+            recall(pred, y)
+            average_precision(pred, y)
             acc = accuracy.compute().item()
             pre = precision.compute().item()
             re = recall.compute().item()
             auc = average_precision.compute().item()
 
-            print('Accuracy for all answers: ' + str(acc))
-            print('Precision for all answers: ' + str(pre))
-            print('Recall for all answers: ' + str(re))
-            print('AUC for all answers: ' + str(auc))
+            print('Current accuracy: ' + str(acc))
+            print('Current precision: ' + str(pre))
+            print('Current recall: ' + str(re))
+            print('Current AP: ' + str(auc))
             counter += 1
 
 
@@ -120,14 +121,14 @@ def eval(g, answers,  aug, model, summary_writer=None, threshold=0.5):
         average_precision.reset()
 
         print('Testing!')
-        print('Accuracy for all answers: ' + str(acc))
-        print('Precision for all answers: ' + str(pre))
-        print('Recall for all answers: ' + str(re))
-        print('AUC for all answers: ' + str(auc))
+        print('Accuracy for all samples: ' + str(acc))
+        print('Precision for all samples: ' + str(pre))
+        print('Recall for all samples: ' + str(re))
+        print('AP for all samples: ' + str(auc))
         if summary_writer:
-            summary_writer.add_scalar('Precision for all answers on the test datasets.', pre)
-            summary_writer.add_scalar('Recall for all answers on the test datasets.', re)
-            summary_writer.add_scalar('AUC for all answers on the test datasets.', auc)
+            summary_writer.add_scalar('Precision for all test samples', pre)
+            summary_writer.add_scalar('Recall for all test samples.', re)
+            summary_writer.add_scalar('AP for all test samples.', auc)
 
 
 if __name__ == '__main__':
@@ -135,7 +136,6 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--graph', type=str)
-    parser.add_argument('--query', type=str, default='')
     parser.add_argument('--log_directory', type=str, default='')
     parser.add_argument('--test_data', type=str, nargs='+')
     args = parser.parse_args()
