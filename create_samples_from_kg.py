@@ -41,7 +41,7 @@ def networkx_multidigraph_to_rdflib(networkx_graph):
     return rdflib_graph
 
 
-def create_rules_dict(rule_file='./rules.txt'):
+def create_rules_dict(rule_file='./datasets/rules.txt'):
     input_file = open(rule_file, "r")
     lines = input_file.readlines()
     rules_by_head_predicate = defaultdict(list)
