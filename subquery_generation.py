@@ -39,8 +39,7 @@ def create_tree(query_string):
         print("%s%s%s" % (pre, node.name, "_inv" if node.is_inv else ""))
     return root
 
-
-# Egor's approach
+# Create all subqueries
 
 def compute_subquery_nodes_root(node):
     if not node.children:
@@ -105,7 +104,7 @@ def create_all_connceted_trees(root, max_num_subquery_vars=4):
     return trees
 
 
-# My approach
+# Greedy approach to create subqueries - Not used in the experiments
 def max_depth(node):
     deep = node
     for leaf in node.leaves:

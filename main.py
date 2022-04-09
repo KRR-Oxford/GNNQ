@@ -11,9 +11,7 @@ import json
 from load_watdiv import load_watdiv_benchmark
 from load_fb15k237 import load_fb15k237_benchmark
 
-# Todo:
-#  - Encode unary predicates in the initial feature vectors - different dim for initial feature vector and hidden states
-#  - Use a file to specify the head relations in the data generation procedure
+# Main training script
 
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
           summary_writer=None):
