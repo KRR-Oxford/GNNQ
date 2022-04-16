@@ -14,6 +14,7 @@ class CustomNode(Node):
     separator = "|"
 
 
+# Create tree representation of the query
 def create_tree(query_string):
     q = prepareQuery(query_string)
     answer_variable = str(q.algebra.p.p.PV[0])
@@ -39,8 +40,9 @@ def create_tree(query_string):
         print("%s%s%s" % (pre, node.name, "_inv" if node.is_inv else ""))
     return root
 
-# Create all subqueries
 
+### Naive approach to create subqueries
+# Computes all variables that occur together in a connected subquery which contains the answer variable
 def compute_subquery_nodes_root(node):
     if not node.children:
         return [node.name]
@@ -50,6 +52,7 @@ def compute_subquery_nodes_root(node):
     return res
 
 
+# Computes all variables that occur together in a connected subquery which does not contain the answer variable
 def compute_subquery_nodes_no_root(node):
     if not node.children:
         return []
@@ -69,6 +72,7 @@ def flatten2list(object):
     return gather
 
 
+# Function that computes all sets of variables that occur together in a connected subquery
 def compute_subquery_nodes(node):
     unflattened = compute_subquery_nodes_root(node) + compute_subquery_nodes_no_root(node)
     res = []
@@ -79,6 +83,7 @@ def compute_subquery_nodes(node):
     return res
 
 
+# Creates subquery tree from a node set
 def create_subtree_from_nodeset(root, nodes):
     new_root = None
     for node in LevelOrderIter(root):
@@ -92,6 +97,7 @@ def create_subtree_from_nodeset(root, nodes):
     return new_root
 
 
+# Creates subquery trees for all connected subqueries up to a specified size
 def create_all_connceted_trees(root, max_num_subquery_vars=4):
     subquery_nodes = compute_subquery_nodes(root)
     trees = []
@@ -104,7 +110,7 @@ def create_all_connceted_trees(root, max_num_subquery_vars=4):
     return trees
 
 
-# Greedy approach to create subqueries - Not used in the experiments
+## Greedy approach to create subqueries - Not used in the experiments
 def max_depth(node):
     deep = node
     for leaf in node.leaves:
@@ -113,6 +119,7 @@ def max_depth(node):
     return deep
 
 
+# Creates subqueries trees in a greedy way from the query tree
 def create_subquery_trees(root, subquery_depth):
     l = max_depth(root)
     if math.floor(l.depth / 2) < 2 or subquery_depth < 2:
@@ -139,6 +146,7 @@ def create_subquery_trees(root, subquery_depth):
     return create_subquery_trees(root, subquery_depth) + [cp_p]
 
 
+# Create subquery strings based on the tree representation of the subqueries
 def create_subqueries(trees):
     queries = []
     for tree in trees:
