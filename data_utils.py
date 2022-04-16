@@ -3,6 +3,7 @@ import torch
 from collections import defaultdict
 from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
 
+
 def create_indices_dict(graph, entity2id=None):
     if entity2id is None:
         entity2id = {}
@@ -12,7 +13,7 @@ def create_indices_dict(graph, entity2id=None):
 
     indices_dict = defaultdict(list)
 
-    # Corrupted graph contains additional constants! We have to add them to the ID dictionary!
+    # Create dictionary that maps entities to a unique id
     for s, p, o in graph:
         sub = str(s).strip()
         obj = str(o).strip()
@@ -22,16 +23,20 @@ def create_indices_dict(graph, entity2id=None):
         if (obj not in entity2id):
             entity2id[obj] = ent
             ent += 1
+        # Add edge to indices dict
         indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
+    # Add inverse edges for every edge
     indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
                     **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
 
+    # Create dictionary that maps ids back to entities
     id2entity = {v: k for k, v in entity2id.items()}
     return indices_dict, entity2id, id2entity
 
+
 def generate_subqueries(query_string, subquery_gen_strategy, subquery_depth,
-                             max_num_subquery_vars):
+                        max_num_subquery_vars):
     root = create_tree(query_string)
     if subquery_gen_strategy == 'greedy':
         trees = create_subquery_trees(root, subquery_depth)
@@ -45,6 +50,7 @@ def generate_subqueries(query_string, subquery_gen_strategy, subquery_depth,
         shape = len(re.search("SELECT (.*) WHERE", subquery)[1].split()) - 1
         subquery_shape[subquery] = shape
     return subqueries, subquery_shape
+
 
 def compute_subquery_answers(graph, entity2id, subqueries):
     subquery_answers = {}
@@ -67,22 +73,25 @@ def compute_subquery_answers(graph, entity2id, subqueries):
             (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
     return subquery_answers
 
+
 def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, graph=None):
     entity2id = None
     if graph:
         _, entity2id, _ = create_indices_dict(graph)
     indices_dict, entity2id, _ = create_indices_dict(sample_graph, entity2id)
     num_nodes = len(entity2id)
-    # dummy feature vector dimension
+    # The benchmark datasets do not contain unary predicates and therefore the initial feature vector dimension can be set to one
     feat_dim = 1
-    # Data object might be None if the answer entity is not contained in the sample graph!
+    # Data object might be None if the answer entity is not contained in the sample graph
     try:
         feat = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
         nodes = [entity2id[str(node)] for node in nodes]
         if aug:
-            hyper_indices_dict = compute_subquery_answers(graph=sample_graph, entity2id=entity2id, subqueries=subqueries)
+            hyper_indices_dict = compute_subquery_answers(graph=sample_graph, entity2id=entity2id,
+                                                          subqueries=subqueries)
             indices_dict = {**indices_dict, **hyper_indices_dict}
-        return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat, 'labels': torch.tensor(labels, dtype=torch.float), 'mask':mask}
+        return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
+                'labels': torch.tensor(labels, dtype=torch.float), 'mask': mask}
     except KeyError:
         print('Failed to create data object!')
         return None
@@ -93,9 +102,11 @@ def prep_data(labels, sample_graphs, nodes, masks, aug, subqueries=None, graphs=
     c = 0
     for sample_graph in sample_graphs:
         if graphs:
-            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug, subqueries=subqueries, graph=graphs[c])
+            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug,
+                                             subqueries=subqueries, graph=graphs[c])
         else:
-            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug, subqueries=subqueries)
+            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug,
+                                             subqueries=subqueries)
         # Data object might be None if the answer entity is not contained in the sample graph!
         c += 1
         if data_object:
