@@ -23,14 +23,14 @@ def compute_metrics(data, model, threshold=0.5):
         pred = model(data_object['feat'], data_object['indices_dict']).flatten()
         pred = pred[data_object['nodes']]
         y = data_object['labels']
-        loss = loss + torch.nn.functional.binary_cross_entropy(pred,y)
+        loss = loss + torch.nn.functional.binary_cross_entropy(pred, y)
         accuracy(pred, y.int())
         precision(pred, y.int())
         recall(pred, y.int())
         average_precision(pred, y.int())
         unobserved_precision(pred[data_object['mask']], y[data_object['mask']].int())
         unobserved_recall(pred[data_object['mask']], y[data_object['mask']].int())
-        unobserved_average_precision(pred[data_object['mask']],y[data_object['mask']].int())
+        unobserved_average_precision(pred[data_object['mask']], y[data_object['mask']].int())
         print('Processed {0}/{1} samples!'.format(counter, len(data)))
         counter += 1
     acc = accuracy.compute().item()
@@ -59,12 +59,14 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
     if 'fb15k237' in test_data[0]:
         test_samples, test_answers, test_labels, mask_observed, graphs = load_fb15k237_benchmark(test_data[0])
     else:
-        test_samples, test_answers, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data, model.query_string)
+        test_samples, test_answers, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data,
+                                                                                               model.query_string)
 
     test_data_objects = prep_data(test_labels, test_samples, test_answers, mask_observed, aug=aug,
                                   subqueries=model.subqueries)
 
-    _, test_acc, test_pre, test_re, test_auc, test_unobserved_pre, test_unobserved_re, test_unobserved_auc = compute_metrics(test_data_objects, model)
+    _, test_acc, test_pre, test_re, test_auc, test_unobserved_pre, test_unobserved_re, test_unobserved_auc = compute_metrics(
+        test_data_objects, model)
 
     print('Testing!')
     print('Accuracy for all samples: ' + str(test_acc))
