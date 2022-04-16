@@ -4,6 +4,7 @@ from collections import defaultdict
 from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
 
 
+# Creates dictionary with edge indices for a graph
 def create_indices_dict(graph, entity2id=None):
     if entity2id is None:
         entity2id = {}
@@ -35,6 +36,7 @@ def create_indices_dict(graph, entity2id=None):
     return indices_dict, entity2id, id2entity
 
 
+# Creates subqueries for a given query string and generation strategy
 def generate_subqueries(query_string, subquery_gen_strategy, subquery_depth,
                         max_num_subquery_vars):
     root = create_tree(query_string)
@@ -52,6 +54,7 @@ def generate_subqueries(query_string, subquery_gen_strategy, subquery_depth,
     return subqueries, subquery_shape
 
 
+# Computes answers for a list of subqueries
 def compute_subquery_answers(graph, entity2id, subqueries):
     subquery_answers = {}
     counter = 1
@@ -74,15 +77,15 @@ def compute_subquery_answers(graph, entity2id, subqueries):
     return subquery_answers
 
 
+# Creates data objects - dictionaries containing all information required for a sample
 def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, graph=None):
     entity2id = None
     if graph:
         _, entity2id, _ = create_indices_dict(graph)
     indices_dict, entity2id, _ = create_indices_dict(sample_graph, entity2id)
     num_nodes = len(entity2id)
-    # The benchmark datasets do not contain unary predicates and therefore the initial feature vector dimension can be set to one
+    # The benchmark datasets do not contain unary predicates and thus the feature vector dimension is one
     feat_dim = 1
-    # Data object might be None if the answer entity is not contained in the sample graph
     try:
         feat = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
         nodes = [entity2id[str(node)] for node in nodes]
