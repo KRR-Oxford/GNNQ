@@ -11,8 +11,8 @@ import json
 from load_watdiv import load_watdiv_benchmark
 from load_fb15k237 import load_fb15k237_benchmark
 
-# Main training script
 
+# Function containing the main training loop
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
           summary_writer=None):
     base_dim = args.base_dim
@@ -24,6 +24,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
+    # This is the definition of the model
     model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=base_dim, shapes_dict=shapes_dict,
                  num_layers=num_layers, negative_slope=negative_slope, max_aggr=args.max_aggr,
                  monotonic=args.monotonic, subqueries=subqueries)
@@ -32,7 +33,6 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     for name, param in model.named_parameters():
         print(name, type(param.data), param.size())
 
-    # Adam optimizer already updates the learning rate
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     # Needs to be defined as module in the HGNN class to automatically move to GPU
@@ -41,13 +41,17 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     train_precision = torchmetrics.Precision(threshold=threshold)
     train_recall = torchmetrics.Recall(threshold=threshold)
 
+    # This is the main training loop
     for epoch in range(epochs):
         print('Epoch-{0}!'.format(epoch))
         model.train()
         optimizer.zero_grad()
         total_train_loss = 0
+        # Creates batch with specified batch size
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
         print('Training!')
+
+        # Loop through data objects in a batch
         for data_object in batch:
             pred = model(data_object['feat'], data_object['indices_dict'], logits=True).flatten()
             pred = pred[data_object['nodes']]
@@ -56,11 +60,11 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, y, weight=sample_weights_train)
             loss.backward()
             total_train_loss = total_train_loss + loss
-            # print('Loss: ' + str(loss.item()))
             pred = torch.sigmoid(pred)
             train_accuracy(pred, y.int())
             train_precision(pred, y.int())
             train_recall(pred, y.int())
+        # Updates parameters for every batch
         optimizer.step()
         print('Loss: ' + str(total_train_loss.item()))
 
@@ -121,7 +125,6 @@ if __name__ == '__main__':
     parser.add_argument('--subquery_depth', type=int, default=2)
     parser.add_argument('--batch_size', type=int, default=40)
     parser.add_argument('--val_epochs', type=int, default=10)
-    # Optimize
     parser.add_argument('--base_dim', type=int, default=16)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
@@ -142,14 +145,16 @@ if __name__ == '__main__':
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
 
+    # Load data
     if 'fb15k237' in args.train_data[0]:
         train_samples, train_nodes, train_labels, train_masks, graphs = load_fb15k237_benchmark(args.train_data[0])
         val_samples, val_nodes, val_labels, val_masks, graphs = load_fb15k237_benchmark(args.val_data[0])
     else:
-        train_samples, train_nodes, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data, args.query_string)
+        train_samples, train_nodes, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data,
+                                                                                              args.query_string)
         val_samples, val_nodes, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
 
-
+    # Create data objects
     if args.aug:
         subqueries, subquery_shape = generate_subqueries(query_string=args.query_string,
                                                          subquery_gen_strategy=args.subquery_gen_strategy,
@@ -187,11 +192,13 @@ if __name__ == '__main__':
     # The benchmark datasets do not contain unary predicates -- therefore the initial feature vector dimension can be set to one
     feat_dim = 1
 
-    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data_objects, val_data=val_data_objects,
+    # Function the contains the main train loop
+    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data_objects,
+          val_data=val_data_objects,
           log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
           summary_writer=writer)
 
     if args.test:
         print('Start Testing!')
-        eval(test_data=args.test_data, model_directory=model_directory, aug=args.aug, device=device, summary_writer=writer)
-
+        eval(test_data=args.test_data, model_directory=model_directory, aug=args.aug, device=device,
+             summary_writer=writer)
