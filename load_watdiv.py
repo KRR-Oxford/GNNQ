@@ -2,6 +2,7 @@ import os
 import torch
 from rdflib import Graph
 
+
 def compute_query_answers(graph, query_string):
     qres = graph.query(query_string)
     answers = []
@@ -9,12 +10,14 @@ def compute_query_answers(graph, query_string):
         answers.append([str(entity).strip() for entity in row][0])
     return answers
 
+
 def get_all_nodes(graph):
     nodes = set()
-    for s,p,o in graph:
+    for s, p, o in graph:
         nodes.add(str(s).strip())
         nodes.add(str(o).strip())
     return list(nodes)
+
 
 def load_watdiv_benchmark(directories, query_string):
     incomplete_graphs = []
@@ -37,6 +40,6 @@ def load_watdiv_benchmark(directories, query_string):
         incomplete_graphs.append(corrupted_g)
         complete_graphs.append(g)
         nodes.append(pos_nodes + neg_nodes)
-        labels.append(torch.cat((torch.ones(len(pos_nodes)),torch.zeros(len(neg_nodes))),dim=0))
+        labels.append(torch.cat((torch.ones(len(pos_nodes)), torch.zeros(len(neg_nodes))), dim=0))
         masks.append(mask)
     return incomplete_graphs, nodes, labels, masks, complete_graphs
