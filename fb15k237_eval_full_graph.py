@@ -4,7 +4,7 @@ import argparse
 import torchmetrics
 from rdflib import Graph
 from data_utils import create_data_object
-from create_samples_from_kg import create_witness_graphs, ground_rule, corrupt_graph, create_rules_dict
+from dataset_generation.create_samples_from_kg import create_witness_graphs, ground_rule, corrupt_graph, create_rules_dict
 from load_fb15k237 import load_fb15k237_benchmark
 import re
 import json
