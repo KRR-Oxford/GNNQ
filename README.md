@@ -1,4 +1,4 @@
-# GNNQ - A neuro-symbolic approach to answer queries on incomplete knowledge graphs
+# GNNQ: A neuro-symbolic approach for query answering on incomplete knowledge graphs
 If you read this document, you have downloaded the GNNQ folder. The GNNQ folder contains the source code and all datasets required to reproduce the experiments for the GNNQ paper.
 
 ### Requirements:
