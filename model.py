@@ -6,12 +6,11 @@ from collections import defaultdict
 
 # Implementation of a HGNN layer
 class HGNNLayer(nn.Module):
-    def __init__(self, input_dim, output_dim, shapes_dict, max_aggr):
+    def __init__(self, input_dim, output_dim, shapes_dict):
         super().__init__()
         self.shapes_dict = shapes_dict
         self.input_dim = input_dim
         self.output_dim = output_dim
-        self.max_aggr = max_aggr
         # Includes bias
         self.C = torch.nn.Linear(input_dim, output_dim)
         self.A = torch.nn.ParameterDict({})
@@ -45,20 +44,15 @@ class HGNNLayer(nn.Module):
                 # Linear transformation of messages
                 tmp = tmp.mm(weights)
                 # Normalise messages
-                if not self.max_aggr:
-                    _, revers_i, counts = torch.unique(i, return_inverse=True, return_counts=True)
-                    norm = 1 / counts[revers_i]
-                    tmp = norm.unsqueeze(1) * tmp
+                _, revers_i, counts = torch.unique(i, return_inverse=True, return_counts=True)
+                norm = 1 / counts[revers_i]
+                tmp = norm.unsqueeze(1) * tmp
                 # Construct tensor containing all messages
                 msgs = torch.cat((msgs, tmp))
         # Expand tensor with dest indices to dimensions of the message tensor
         dest_indices = dest_indices.unsqueeze(1).expand_as(msgs)
         # Aggregate all messages
-        if self.max_aggr:
-            agg, _ = scatter.scatter_max(src=msgs, index=dest_indices, out=torch.zeros(x.size()[0], self.output_dim),
-                                         dim=0)
-        else:
-            agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros(x.size()[0], self.output_dim),
+        agg = scatter.scatter_add(src=msgs, index=dest_indices, out=torch.zeros(x.size()[0], self.output_dim),
                                       dim=0)
         # Combine message vector with the vector from the previous layer
         h = self.C(x) + agg
@@ -67,31 +61,20 @@ class HGNNLayer(nn.Module):
 
 # Implementation of the HGNN model
 class HGNN(nn.Module):
-    def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.1, max_aggr=False,
-                 monotonic=False, subqueries=None):
+    def __init__(self, query_string, feat_dim, base_dim, shapes_dict, num_layers, negative_slope=0.1, subqueries=None):
         super().__init__()
         self.shapes_dict = shapes_dict
         self.query_string = query_string
         self.subqueries = subqueries
         self.num_layers = num_layers
         self.negative_slope = negative_slope
-        self.monotonic = monotonic
         self.msg_layers = nn.ModuleList([])
-        self.msg_layers.append(HGNNLayer(feat_dim, base_dim, shapes_dict, max_aggr))
+        self.msg_layers.append(HGNNLayer(feat_dim, base_dim, shapes_dict))
         for i in range(1, self.num_layers - 1):
-            self.msg_layers.append(HGNNLayer(base_dim, base_dim, shapes_dict, max_aggr))
-        self.msg_layers.append(HGNNLayer(base_dim, 1, shapes_dict, max_aggr))
-
-    # Function that sets all negative weights to zero
-    def clamp_negative_weights(self):
-        for name, param in self.named_parameters():
-            if 'bias' not in name:
-                param.data.clamp_(0)
+            self.msg_layers.append(HGNNLayer(base_dim, base_dim, shapes_dict))
+        self.msg_layers.append(HGNNLayer(base_dim, 1, shapes_dict))
 
     def forward(self, x, indices_dict, logits=False):
-        # Sets all negative weights to zero and thus forces network to be monotonic
-        if self.monotonic:
-            self.clamp_negative_weights()
         # Message passing layers
         for i in range(self.num_layers - 1):
             x = self.msg_layers[i](x, indices_dict)
