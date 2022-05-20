@@ -36,10 +36,10 @@ def compute_metrics(data, model, threshold=0.5):
     acc = accuracy.compute().item()
     pre = precision.compute().item()
     re = recall.compute().item()
-    auc = average_precision.compute().item()
+    ap = average_precision.compute().item()
     unobserved_pre = unobserved_precision.compute().item()
     unobserved_re = unobserved_recall.compute().item()
-    unobserved_auc = unobserved_average_precision.compute().item()
+    unobserved_ap = unobserved_average_precision.compute().item()
     accuracy.reset()
     precision.reset()
     recall.reset()
@@ -47,11 +47,11 @@ def compute_metrics(data, model, threshold=0.5):
     unobserved_precision.reset()
     unobserved_recall.reset()
     unobserved_average_precision.reset()
-    return loss, acc, pre, re, auc, unobserved_pre, unobserved_re, unobserved_auc
+    return loss, acc, pre, re, ap, unobserved_pre, unobserved_re, unobserved_ap
 
 
 def eval(test_data, model_directory, aug, device, summary_writer=None):
-    model = torch.load(os.path.join(model_directory, 'model.pt'))
+    model = torch.load(model_directory)
     model.to(device)
     for param in model.parameters():
         print(type(param.data), param.size())
@@ -65,36 +65,36 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
     test_data_objects = prep_data(test_labels, test_samples, test_answers, mask_observed, aug=aug,
                                   subqueries=model.subqueries)
 
-    _, test_acc, test_pre, test_re, test_auc, test_unobserved_pre, test_unobserved_re, test_unobserved_auc = compute_metrics(
+    _, test_acc, test_pre, test_re, test_ap, test_unobserved_pre, test_unobserved_re, test_unobserved_ap = compute_metrics(
         test_data_objects, model)
 
     print('Testing!')
     print('Accuracy for all samples: ' + str(test_acc))
     print('Precision for all samples: ' + str(test_pre))
     print('Recall for all samples: ' + str(test_re))
-    print('AP for all samples: ' + str(test_auc))
+    print('AP for all samples: ' + str(test_ap))
     print('Precision for unmasked samples: ' + str(test_unobserved_pre))
     print('Recall for unmasked samples: ' + str(test_unobserved_re))
-    print('AP for unmasked samples: ' + str(test_unobserved_auc))
+    print('AP for unmasked samples: ' + str(test_unobserved_ap))
     if summary_writer:
         summary_writer.add_scalar('Precision for all testing samples.', test_pre)
         summary_writer.add_scalar('Recall for all testing samples.', test_re)
-        summary_writer.add_scalar('AP for all testing samples.', test_auc)
+        summary_writer.add_scalar('AP for all testing samples.', test_ap)
         summary_writer.add_scalar('Precision for unmasked testing samples.', test_unobserved_pre)
         summary_writer.add_scalar('Recall for unmasked testing samples.', test_unobserved_re)
-        summary_writer.add_scalar('AP for unmasked testing samples.', test_unobserved_auc)
+        summary_writer.add_scalar('AP for unmasked testing samples.', test_unobserved_ap)
 
 
 if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log_directory', type=str)
+    parser.add_argument('--model_directory', type=str)
     parser.add_argument('--test_data', type=str, nargs='+')
     args = parser.parse_args()
 
     with open(os.path.join(args.log_directory, 'config.txt'), 'r') as f:
         run_args = json.load(f)
 
-    eval(test_data=args.test_data, model_directory=os.path.join(args.log_directory, 'models'),
+    eval(test_data=args.test_data, model_directory=args.model_directory,
          aug=run_args['aug'], device=device)
