@@ -2,8 +2,9 @@ import torch
 import argparse
 import torchmetrics
 import os
+import optuna
+from optuna.trial import TrialState
 from datetime import datetime
-from torch.utils.tensorboard import SummaryWriter
 from model import HGNN
 from data_utils import generate_subqueries, prep_data
 from eval import eval, compute_metrics
@@ -14,26 +15,28 @@ from load_fb15k237 import load_fb15k237_benchmark
 
 # Function containing the main training loop
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
-          summary_writer=None):
-    base_dim = args.base_dim
-    num_layers = args.num_layers
-    epochs = args.epochs
-    learning_rate = args.lr
-    negative_slope = args.negative_slope
+          summary_writer=None, trial=None):
 
-    with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    if trial:
+        args.base_dim = trial.suggest_int('base_dim', 8, 64)
+        args.learning_rate = trial.suggest_float("lr", 0.001, 0.1, step=0.001)
+        args.positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 1000)
+        args.negative_slope = trial.suggest_float('negative_slope', 0.01, 0.2, step=0.01)
+        with open(os.path.join(log_directory, 'trial-{}-config.txt'.format(trial.number)), 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
+    else:
+        with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
 
     # This is the definition of the model
-    model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=base_dim, shapes_dict=shapes_dict,
-                 num_layers=num_layers, negative_slope=negative_slope, max_aggr=args.max_aggr,
-                 monotonic=args.monotonic, subqueries=subqueries)
+    model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=args.base_dim, shapes_dict=shapes_dict,
+                 num_layers=args.num_layers, negative_slope=args.negative_slope, subqueries=subqueries)
 
     model.to(device)
     for name, param in model.named_parameters():
         print(name, type(param.data), param.size())
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     # Needs to be defined as module in the HGNN class to automatically move to GPU
     threshold = 0.5
@@ -42,7 +45,8 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     train_recall = torchmetrics.Recall(threshold=threshold)
 
     # This is the main training loop
-    for epoch in range(epochs):
+    val_ap = 0
+    for epoch in range(args.epochs):
         print('Epoch-{0}!'.format(epoch))
         model.train()
         optimizer.zero_grad()
@@ -82,31 +86,40 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         train_precision.reset()
         train_recall.reset()
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            loss, val_acc, val_pre, val_re, val_auc, val_unobserved_pre, val_unobserved_re, val_unobserved_auc = compute_metrics(
+            loss, val_acc, val_pre, val_re, val_ap, val_unobserved_pre, val_unobserved_re, val_unobserved_ap = compute_metrics(
                 val_data, model, threshold)
+
+            if trial:
+                trial.report(val_ap, epoch)
 
             print('Validating!')
             print('Validation loss: ' + str(loss.item()))
             print('Accuracy for all samples: ' + str(val_acc))
             print('Precision for all samples:  ' + str(val_pre))
             print('Recall for all samples: ' + str(val_re))
-            print('AP for all samples: ' + str(val_auc))
+            print('AP for all samples: ' + str(val_ap))
             print('Precision for unmasked samples:  ' + str(val_unobserved_pre))
             print('Recall for unmasked samples: ' + str(val_unobserved_re))
-            print('AP for unmasked samples: ' + str(val_unobserved_auc))
+            print('AP for unmasked samples: ' + str(val_unobserved_ap))
             if summary_writer:
                 summary_writer.add_scalar('Loss for all validations samples.', loss, epoch)
                 summary_writer.add_scalar('Precision for all validations samples.', val_pre, epoch)
                 summary_writer.add_scalar('Recall for all validations samples.', val_re, epoch)
-                summary_writer.add_scalar('AP for all all validations samples.', val_auc, epoch)
+                summary_writer.add_scalar('AP for all all validations samples.', val_ap, epoch)
                 summary_writer.add_scalar('Precision for unmasked validation samples.',
                                           val_unobserved_pre, epoch)
                 summary_writer.add_scalar('Recall for unmasked validation samples.',
                                           val_unobserved_re, epoch)
-                summary_writer.add_scalar('AP for unmasked validation samples.', val_unobserved_auc,
+                summary_writer.add_scalar('AP for unmasked validation samples.', val_unobserved_ap,
                                           epoch)
+            if trial.should_prune():
+                raise optuna.exceptions.TrialPruned()
 
-    torch.save(model, os.path.join(model_directory, 'model.pt'))
+    if trial:
+        torch.save(model, os.path.join(model_directory, 'trial-{}-model.pt'.format(trial.number)))
+    else:
+        torch.save(model, os.path.join(model_directory, 'model.pt'))
+    return val_ap
 
 
 if __name__ == '__main__':
@@ -118,8 +131,6 @@ if __name__ == '__main__':
     parser.add_argument('--log_dir', type=str, default='runs/')
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
-    parser.add_argument('--max_aggr', action='store_true', default=False)
-    parser.add_argument('--monotonic', action='store_true', default=False)
     parser.add_argument('--subquery_gen_strategy', type=str, default='not greedy')
     parser.add_argument('--max_num_subquery_vars', type=int, default=6)
     parser.add_argument('--subquery_depth', type=int, default=2)
@@ -131,6 +142,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--negative_slope', type=float, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=1)
+    parser.add_argument('--tune_param', action='store_true', default=False)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -140,7 +152,6 @@ if __name__ == '__main__':
     current_directory = os.getcwd()
     log_directory = os.path.join(current_directory, args.log_dir + date_time)
     model_directory = os.path.join(log_directory, 'models')
-    writer = SummaryWriter(log_directory)
 
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
@@ -193,12 +204,40 @@ if __name__ == '__main__':
     feat_dim = 1
 
     # Function the contains the main train loop
-    train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data_objects,
-          val_data=val_data_objects,
-          log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args,
-          summary_writer=writer)
+    if not args.tune_param:
+        train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data_objects,
+            val_data=val_data_objects, log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args)
 
-    if args.test:
-        print('Start Testing!')
-        eval(test_data=args.test_data, model_directory=model_directory, aug=args.aug, device=device,
-             summary_writer=writer)
+        if args.test:
+            print('Start Testing!')
+            eval(test_data=args.test_data, model_directory=os.path.join(model_directory, 'model.pt'), aug=args.aug, device=device)
+
+    else:
+        study = optuna.create_study(direction='maximize', pruner=optuna.pruners.MedianPruner(
+            n_startup_trials=5, n_warmup_steps=30, interval_steps=10))
+        study.optimize(lambda trial: train(trial=trial, device=device, feat_dim=feat_dim, shapes_dict=shapes_dict,
+                                    train_data=train_data_objects, val_data=val_data_objects,
+                                    log_directory=log_directory, model_directory=model_directory, args=args), n_trials=100)
+
+        pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
+        complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
+
+        print("Study statistics: ")
+        print("  Number of finished trials: ", len(study.trials))
+        print("  Number of pruned trials: ", len(pruned_trials))
+        print("  Number of complete trials: ", len(complete_trials))
+
+        trial = study.best_trial
+        print("Best trial is trial number {}".format(trial.number))
+
+        print("  Value: ", trial.value)
+
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
+
+        if args.test:
+            print('Start Testing!')
+            eval(test_data=args.test_data, model_directory=os.path.join(model_directory, 'trial-{}-model.pt'.format(trial.number)), aug=args.aug, device=device)
+
+
