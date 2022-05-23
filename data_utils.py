@@ -3,16 +3,31 @@ import torch
 from collections import defaultdict
 from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
 
+# def create_type2id_dict(graph, type2id=None):
+#     if type2id is None:
+#         type2id = {}
+#         types = 0
+#     else:
+#         types = len(type2id)
+#
+#     # Create dictionary that maps entities to a unique id
+#     for s, p, o in graph:
+#         obj = str(o).strip()
+#
+#         if str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
+#             if (obj not in type2id):
+#                 type2id[obj] = types
+#                 types += 1
+#
+#     id2type = {v: k for k, v in type2id.items()}
+#     return type2id, id2type
 
-# Creates dictionary with edge indices for a graph
-def create_indices_dict(graph, entity2id=None):
+def create_entity2id_dict(graph, entity2id=None):
     if entity2id is None:
         entity2id = {}
         ent = 0
     else:
         ent = len(entity2id)
-
-    indices_dict = defaultdict(list)
 
     # Create dictionary that maps entities to a unique id
     for s, p, o in graph:
@@ -21,29 +36,35 @@ def create_indices_dict(graph, entity2id=None):
         if (sub not in entity2id):
             entity2id[sub] = ent
             ent += 1
+        # if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
         if (obj not in entity2id):
             entity2id[obj] = ent
             ent += 1
+
+    # Create dictionary that maps ids back to entities
+    id2entity = {v: k for k, v in entity2id.items()}
+    return entity2id, id2entity
+
+# Creates dictionary with edge indices for a graph
+def create_indices_dict(graph, entity2id):
+    indices_dict = defaultdict(list)
+    for s, p, o in graph:
+        #if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
+        sub = str(s).strip()
+        obj = str(o).strip()
         # Add edge to indices dict
         indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
     # Add inverse edges for every edge
     indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
                     **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
-
-    # Create dictionary that maps ids back to entities
-    id2entity = {v: k for k, v in entity2id.items()}
-    return indices_dict, entity2id, id2entity
+    return indices_dict
 
 
 # Creates subqueries for a given query string and generation strategy
-def generate_subqueries(query_string, subquery_gen_strategy, subquery_depth,
-                        max_num_subquery_vars):
+def generate_subqueries(query_string, max_num_subquery_vars):
     root = create_tree(query_string)
-    if subquery_gen_strategy == 'greedy':
-        trees = create_subquery_trees(root, subquery_depth)
-    else:
-        trees = create_all_connceted_trees(root, max_num_subquery_vars)
+    trees = create_all_connceted_trees(root, max_num_subquery_vars)
     subqueries = []
     subquery_shape = {}
     for subquery in create_subqueries(trees):
@@ -76,13 +97,18 @@ def compute_subquery_answers(graph, entity2id, subqueries):
             (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
     return subquery_answers
 
+def augment_graph(indices_dict, sample_graph, entity2id, subqueries):
+    hyper_indices_dict = compute_subquery_answers(graph=sample_graph, entity2id=entity2id,
+                                                  subqueries=subqueries)
+    return {**indices_dict, **hyper_indices_dict}
 
 # Creates data objects - dictionaries containing all information required for a sample
 def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, graph=None):
     entity2id = None
     if graph:
-        _, entity2id, _ = create_indices_dict(graph)
-    indices_dict, entity2id, _ = create_indices_dict(sample_graph, entity2id)
+        entity2id, _ = create_entity2id_dict(graph)
+    entity2id, _ = create_entity2id_dict(sample_graph, entity2id)
+    indices_dict = create_indices_dict(sample_graph, entity2id)
     num_nodes = len(entity2id)
     # The benchmark datasets do not contain unary predicates and thus the feature vector dimension is one
     feat_dim = 1
@@ -90,9 +116,7 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, graph
         feat = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
         nodes = [entity2id[str(node)] for node in nodes]
         if aug:
-            hyper_indices_dict = compute_subquery_answers(graph=sample_graph, entity2id=entity2id,
-                                                          subqueries=subqueries)
-            indices_dict = {**indices_dict, **hyper_indices_dict}
+           indices_dict = augment_graph(indices_dict, sample_graph, entity2id, subqueries)
         return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
                 'labels': torch.tensor(labels, dtype=torch.float), 'mask': mask}
     except KeyError:
