@@ -10,7 +10,6 @@ from load_fb15k237 import load_fb15k237_benchmark
 
 def compute_metrics(data, model, threshold=0.5):
     loss = 0
-    accuracy = torchmetrics.Accuracy(threshold=threshold)
     precision = torchmetrics.Precision(threshold=threshold)
     recall = torchmetrics.Recall(threshold=threshold)
     average_precision = torchmetrics.AveragePrecision()
@@ -24,7 +23,6 @@ def compute_metrics(data, model, threshold=0.5):
         pred = pred[data_object['nodes']]
         y = data_object['labels']
         loss = loss + torch.nn.functional.binary_cross_entropy(pred, y)
-        accuracy(pred, y.int())
         precision(pred, y.int())
         recall(pred, y.int())
         average_precision(pred, y.int())
@@ -33,21 +31,19 @@ def compute_metrics(data, model, threshold=0.5):
         unobserved_average_precision(pred[data_object['mask']], y[data_object['mask']].int())
         print('Processed {0}/{1} samples!'.format(counter, len(data)))
         counter += 1
-    acc = accuracy.compute().item()
     pre = precision.compute().item()
     re = recall.compute().item()
     ap = average_precision.compute().item()
     unobserved_pre = unobserved_precision.compute().item()
     unobserved_re = unobserved_recall.compute().item()
     unobserved_ap = unobserved_average_precision.compute().item()
-    accuracy.reset()
     precision.reset()
     recall.reset()
     average_precision.reset()
     unobserved_precision.reset()
     unobserved_recall.reset()
     unobserved_average_precision.reset()
-    return loss, acc, pre, re, ap, unobserved_pre, unobserved_re, unobserved_ap
+    return loss, pre, re, ap, unobserved_pre, unobserved_re, unobserved_ap
 
 
 def eval(test_data, model_directory, aug, device, summary_writer=None):
@@ -65,11 +61,10 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
     test_data_objects = prep_data(test_labels, test_samples, test_answers, mask_observed, aug=aug,
                                   subqueries=model.subqueries)
 
-    _, test_acc, test_pre, test_re, test_ap, test_unobserved_pre, test_unobserved_re, test_unobserved_ap = compute_metrics(
+    _, test_pre, test_re, test_ap, test_unobserved_pre, test_unobserved_re, test_unobserved_ap = compute_metrics(
         test_data_objects, model)
 
     print('Testing!')
-    print('Accuracy for all samples: ' + str(test_acc))
     print('Precision for all samples: ' + str(test_pre))
     print('Recall for all samples: ' + str(test_re))
     print('AP for all samples: ' + str(test_ap))
