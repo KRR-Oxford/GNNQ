@@ -97,17 +97,19 @@ def create_feature_vectors(graph, entity2id, types):
 # Creates data objects - dictionaries containing all information required for a sample
 def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, types=None, graph=None):
     entity2id = None
+    # This is unfortunatly required due to the way we create the watdiv benchmarks
     if graph:
         entity2id, _ = create_entity2id_dict(graph)
     entity2id, _ = create_entity2id_dict(sample_graph, entity2id)
     indices_dict = create_indices_dict(sample_graph, entity2id)
     num_nodes = len(nodes)
     if types:
-        feat = create_feature_vectors(graph, entity2id, types)
+        feat = create_feature_vectors(sample_graph, entity2id, types)
     else:
         # The benchmark queries do not contain unary predicates and thus we can ignore unary predicates
         feat = torch.zeros(num_nodes, 0)
     try:
+        # Append 1 as first entry of every feature vector
         feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1)
         nodes = [entity2id[str(node)] for node in nodes]
         if aug:

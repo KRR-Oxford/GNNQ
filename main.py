@@ -169,10 +169,10 @@ if __name__ == '__main__':
 
         print('Training samples!')
         train_data_objects = prep_data(train_labels, train_samples, train_nodes, train_masks, aug=args.aug,
-                                       subqueries=subqueries)
+                                       subqueries=subqueries, types=types)
         print('Validation samples!')
         val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
-                                     subqueries=subqueries)
+                                     subqueries=subqueries, types=types)
 
         rels = set()
         for d in train_data_objects + val_data_objects:
@@ -195,8 +195,10 @@ if __name__ == '__main__':
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
 
-    # The benchmark datasets do not contain unary predicates -- therefore the initial feature vector dimension can be set to one
-    feat_dim = 1
+    if types:
+        feat_dim = len(types) + 1
+    else:
+        feat_dim = 1
 
     # Function the contains the main train loop
     if not args.tune_param:

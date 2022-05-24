@@ -1,5 +1,6 @@
 import os
 import torch
+import pickle
 from rdflib import Graph
 
 
@@ -10,7 +11,6 @@ def compute_query_answers(graph, query_string):
         answers.append([str(entity).strip() for entity in row][0])
     return answers
 
-
 def get_all_nodes(graph):
     nodes = set()
     for s, p, o in graph:
@@ -19,6 +19,10 @@ def get_all_nodes(graph):
             nodes.add(str(o).strip())
     return list(nodes)
 
+def get_all_types():
+    with open('datasets/watdiv/types_dict.pickle', 'rb') as f:
+        types = pickle.load(f)
+    return types
 
 def load_watdiv_benchmark(directories, query_string):
     incomplete_graphs = []
@@ -26,6 +30,7 @@ def load_watdiv_benchmark(directories, query_string):
     nodes = []
     labels = []
     masks = []
+    types = get_all_types()
     for directory in directories:
         print('Preparing dataset: ' + directory)
         g = Graph()
@@ -43,4 +48,4 @@ def load_watdiv_benchmark(directories, query_string):
         nodes.append(pos_nodes + neg_nodes)
         labels.append(torch.cat((torch.ones(len(pos_nodes)), torch.zeros(len(neg_nodes))), dim=0))
         masks.append(mask)
-    return incomplete_graphs, nodes, None, labels, masks, complete_graphs
+    return incomplete_graphs, nodes, types, labels, masks, complete_graphs
