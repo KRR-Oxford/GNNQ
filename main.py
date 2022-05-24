@@ -1,5 +1,4 @@
 import torch
-import random
 import argparse
 import torchmetrics
 import os
@@ -165,10 +164,7 @@ if __name__ == '__main__':
 
     # Create data objects
     if args.aug:
-        subqueries, subquery_shape = generate_subqueries(query_string=args.query_string,
-                                                         subquery_gen_strategy=args.subquery_gen_strategy,
-                                                         subquery_depth=args.subquery_depth,
-                                                         max_num_subquery_vars=args.max_num_subquery_vars)
+        subqueries, subquery_shape = generate_subqueries(query_string=args.query_string, max_num_subquery_vars=args.max_num_subquery_vars)
 
         print('Training samples!')
         train_data_objects = prep_data(train_labels, train_samples, train_nodes, train_masks, aug=args.aug,
