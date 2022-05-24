@@ -1,4 +1,5 @@
 import torch
+import random
 import argparse
 import torchmetrics
 import os
@@ -120,6 +121,8 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
 
 if __name__ == '__main__':
+    torch.manual_seed(0)
+
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--query_string', type=str)
     parser.add_argument('--train_data', type=str, nargs='+')
