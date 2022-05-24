@@ -153,12 +153,12 @@ if __name__ == '__main__':
 
     # Load data
     if 'fb15k237' in args.train_data[0]:
-        train_samples, train_nodes, train_labels, train_masks, graphs = load_fb15k237_benchmark(args.train_data[0])
-        val_samples, val_nodes, val_labels, val_masks, graphs = load_fb15k237_benchmark(args.val_data[0])
+        train_samples, train_nodes, types, train_labels, train_masks, graphs = load_fb15k237_benchmark(args.train_data[0])
+        val_samples, val_nodes, types, val_labels, val_masks, graphs = load_fb15k237_benchmark(args.val_data[0])
     else:
-        train_samples, train_nodes, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data,
+        train_samples, train_nodes, types, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data,
                                                                                               args.query_string)
-        val_samples, val_nodes, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
+        val_samples, val_nodes, types, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
 
     # Create data objects
     if args.aug:
@@ -184,10 +184,10 @@ if __name__ == '__main__':
         subqueries = None
         print('Training samples!')
         train_data_objects = prep_data(train_labels, train_samples, train_nodes, train_masks, aug=args.aug,
-                                       subqueries=subqueries)
+                                       subqueries=subqueries, types=types)
         print('Validation samples!')
         val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
-                                     subqueries=subqueries)
+                                     subqueries=subqueries, types=types)
 
         rels = set()
         for d in train_data_objects + val_data_objects:

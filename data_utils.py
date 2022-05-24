@@ -1,26 +1,8 @@
 import re
 import torch
 from collections import defaultdict
-from subquery_generation import create_tree, create_subquery_trees, create_subqueries, create_all_connceted_trees
+from subquery_generation import create_tree, create_subqueries, create_all_connceted_trees
 
-# def create_type2id_dict(graph, type2id=None):
-#     if type2id is None:
-#         type2id = {}
-#         types = 0
-#     else:
-#         types = len(type2id)
-#
-#     # Create dictionary that maps entities to a unique id
-#     for s, p, o in graph:
-#         obj = str(o).strip()
-#
-#         if str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
-#             if (obj not in type2id):
-#                 type2id[obj] = types
-#                 types += 1
-#
-#     id2type = {v: k for k, v in type2id.items()}
-#     return type2id, id2type
 
 def create_entity2id_dict(graph, entity2id=None):
     if entity2id is None:
@@ -36,10 +18,10 @@ def create_entity2id_dict(graph, entity2id=None):
         if (sub not in entity2id):
             entity2id[sub] = ent
             ent += 1
-        # if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
-        if (obj not in entity2id):
-            entity2id[obj] = ent
-            ent += 1
+        if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
+            if (obj not in entity2id):
+                entity2id[obj] = ent
+                ent += 1
 
     # Create dictionary that maps ids back to entities
     id2entity = {v: k for k, v in entity2id.items()}
@@ -49,11 +31,11 @@ def create_entity2id_dict(graph, entity2id=None):
 def create_indices_dict(graph, entity2id):
     indices_dict = defaultdict(list)
     for s, p, o in graph:
-        #if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
-        sub = str(s).strip()
-        obj = str(o).strip()
-        # Add edge to indices dict
-        indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
+        if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
+            sub = str(s).strip()
+            obj = str(o).strip()
+            # Add edge to indices dict
+            indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
     # Add inverse edges for every edge
     indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
@@ -102,18 +84,31 @@ def augment_graph(indices_dict, sample_graph, entity2id, subqueries):
                                                   subqueries=subqueries)
     return {**indices_dict, **hyper_indices_dict}
 
+def create_feature_vectors(graph, entity2id, types):
+    feat = torch.zeros(len(entity2id), len(types))
+    for s, p, o in graph:
+        if str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
+            sub = str(s).strip()
+            obj = str(o).strip()
+            # Add edge to indices dict
+            feat[entity2id[sub]][types[obj]] = 1
+    return feat
+
 # Creates data objects - dictionaries containing all information required for a sample
-def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, graph=None):
+def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, types=None, graph=None):
     entity2id = None
     if graph:
         entity2id, _ = create_entity2id_dict(graph)
     entity2id, _ = create_entity2id_dict(sample_graph, entity2id)
     indices_dict = create_indices_dict(sample_graph, entity2id)
-    num_nodes = len(entity2id)
-    # The benchmark datasets do not contain unary predicates and thus the feature vector dimension is one
-    feat_dim = 1
+    num_nodes = len(nodes)
+    if types:
+        feat = create_feature_vectors(graph, entity2id, types)
+    else:
+        # The benchmark queries do not contain unary predicates and thus we can ignore unary predicates
+        feat = torch.zeros(num_nodes, 0)
     try:
-        feat = torch.cat((torch.ones(num_nodes, 1), torch.zeros(num_nodes, feat_dim - 1)), dim=1)
+        feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1)
         nodes = [entity2id[str(node)] for node in nodes]
         if aug:
            indices_dict = augment_graph(indices_dict, sample_graph, entity2id, subqueries)
@@ -123,17 +118,16 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, graph
         print('Failed to create data object!')
         return None
 
-
-def prep_data(labels, sample_graphs, nodes, masks, aug, subqueries=None, graphs=None):
+def prep_data(labels, sample_graphs, nodes, masks, aug, types=None, subqueries=None, graphs=None):
     data = []
     c = 0
     for sample_graph in sample_graphs:
         if graphs:
             data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug,
-                                             subqueries=subqueries, graph=graphs[c])
+                                             subqueries=subqueries, types=types, graph=graphs[c])
         else:
             data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug,
-                                             subqueries=subqueries)
+                                             subqueries=subqueries, types=types)
         # Data object might be None if the answer entity is not contained in the sample graph!
         c += 1
         if data_object:

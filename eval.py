@@ -53,13 +53,13 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
         print(type(param.data), param.size())
 
     if 'fb15k237' in test_data[0]:
-        test_samples, test_answers, test_labels, mask_observed, graphs = load_fb15k237_benchmark(test_data[0])
+        test_samples, test_answers, types, test_labels, mask_observed, graphs = load_fb15k237_benchmark(test_data[0])
     else:
-        test_samples, test_answers, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data,
+        test_samples, test_answers, types, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data,
                                                                                                model.query_string)
 
     test_data_objects = prep_data(test_labels, test_samples, test_answers, mask_observed, aug=aug,
-                                  subqueries=model.subqueries)
+                                  subqueries=model.subqueries, types=types)
 
     _, test_pre, test_re, test_ap, test_unobserved_pre, test_unobserved_re, test_unobserved_ap = compute_metrics(
         test_data_objects, model)

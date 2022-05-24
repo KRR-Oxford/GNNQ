@@ -15,7 +15,8 @@ def get_all_nodes(graph):
     nodes = set()
     for s, p, o in graph:
         nodes.add(str(s).strip())
-        nodes.add(str(o).strip())
+        if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
+            nodes.add(str(o).strip())
     return list(nodes)
 
 
@@ -42,4 +43,4 @@ def load_watdiv_benchmark(directories, query_string):
         nodes.append(pos_nodes + neg_nodes)
         labels.append(torch.cat((torch.ones(len(pos_nodes)), torch.zeros(len(neg_nodes))), dim=0))
         masks.append(mask)
-    return incomplete_graphs, nodes, labels, masks, complete_graphs
+    return incomplete_graphs, nodes, None, labels, masks, complete_graphs
