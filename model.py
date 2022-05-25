@@ -39,6 +39,7 @@ class HGNNLayer(nn.Module):
                 tmp = x[edge_indices[0]]
                 s = tmp.size()[1] * self.shapes_dict[edge]
                 # Concat feature vectors of src nodes for hyperedges
+                tmp = torch.reshape(tmp, (-1, s))
                 weights = self.A[edge]
                 # Linear transformation of messages
                 tmp = tmp.mm(weights)
