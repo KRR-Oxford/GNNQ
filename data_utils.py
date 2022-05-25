@@ -28,7 +28,7 @@ def create_entity2id_dict(graph, entity2id=None):
     return entity2id, id2entity
 
 # Creates dictionary with edge indices for a graph
-def create_indices_dict(graph, entity2id):
+def create_indices_dict(graph, entity2id, device):
     indices_dict = defaultdict(list)
     for s, p, o in graph:
         if not str(p) == "http://www.w3.org/1999/02/22-rdf-syntax-ns#type":
@@ -38,8 +38,8 @@ def create_indices_dict(graph, entity2id):
             indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
     # Add inverse edges for every edge
-    indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
-                    **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
+    indices_dict = {**{k: torch.tensor(v, device=device).t() for k, v in indices_dict.items()},
+                    **{k + "_inv": torch.tensor(v, device=device).t()[[1, 0]] for k, v in indices_dict.items()}}
     return indices_dict
 
 
@@ -95,13 +95,13 @@ def create_feature_vectors(graph, entity2id, types):
     return feat
 
 # Creates data objects - dictionaries containing all information required for a sample
-def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, types=None, graph=None):
+def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, device, types=None, graph=None):
     entity2id = None
-    # This is unfortunatly required due to the way we create the watdiv benchmarks
+    # This is unfortunalty required due to the way we create the watdiv benchmarks
     if graph:
         entity2id, _ = create_entity2id_dict(graph)
     entity2id, _ = create_entity2id_dict(sample_graph, entity2id)
-    indices_dict = create_indices_dict(sample_graph, entity2id)
+    indices_dict = create_indices_dict(sample_graph, entity2id, device)
     num_nodes = len(nodes)
     if types:
         feat = create_feature_vectors(sample_graph, entity2id, types)
@@ -110,26 +110,26 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, types
         feat = torch.zeros(num_nodes, 0)
     try:
         # Append 1 as first entry of every feature vector
-        feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1)
+        feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1).to(device)
         nodes = [entity2id[str(node)] for node in nodes]
         if aug:
            indices_dict = augment_graph(indices_dict, sample_graph, entity2id, subqueries)
         return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
-                'labels': torch.tensor(labels, dtype=torch.float), 'mask': mask}
+                'labels': torch.tensor(labels, dtype=torch.float, device=device), 'mask': mask}
     except KeyError:
         print('Failed to create data object!')
         return None
 
-def prep_data(labels, sample_graphs, nodes, masks, aug, types=None, subqueries=None, graphs=None):
+def prep_data(labels, sample_graphs, nodes, masks, aug, device, types=None, subqueries=None, graphs=None):
     data = []
     c = 0
     for sample_graph in sample_graphs:
         if graphs:
-            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug,
-                                             subqueries=subqueries, types=types, graph=graphs[c])
+            data_object = create_data_object(labels=labels[c], sample_graph=sample_graph, nodes=nodes[c], mask=masks[c], aug=aug,
+                                             subqueries=subqueries, types=types, graph=graphs[c], device=device)
         else:
-            data_object = create_data_object(labels[c], sample_graph, nodes[c], masks[c], aug=aug,
-                                             subqueries=subqueries, types=types)
+            data_object = create_data_object(labels=labels[c], sample_graph=sample_graph, nodes=nodes[c], mask=masks[c], aug=aug,
+                                             subqueries=subqueries, types=types, device=device)
         # Data object might be None if the answer entity is not contained in the sample graph!
         c += 1
         if data_object:

@@ -18,6 +18,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
           summary_writer=None, trial=None):
 
     if trial:
+        print('Starting trial-{}!'.format(trial.number))
         args.base_dim = trial.suggest_int('base_dim', 8, 64)
         args.learning_rate = trial.suggest_float("learning_rate", 0.001, 0.1, step=0.005)
         args.positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 100)
@@ -40,8 +41,8 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
     # Needs to be defined as module in the HGNN class to automatically move to GPU
     threshold = 0.5
-    train_precision = torchmetrics.Precision(threshold=threshold)
-    train_recall = torchmetrics.Recall(threshold=threshold)
+    train_precision = torchmetrics.Precision(threshold=threshold).to(device)
+    train_recall = torchmetrics.Recall(threshold=threshold).to(device)
 
     # This is the main training loop
     val_ap = 0
@@ -56,10 +57,10 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
         # Loop through data objects in a batch
         for data_object in batch:
-            pred = model(data_object['feat'], data_object['indices_dict'], logits=True).flatten()
+            pred = model(data_object['feat'], data_object['indices_dict'], logits=True, device=device).flatten()
             pred = pred[data_object['nodes']]
             y = data_object['labels']
-            sample_weights_train = args.positive_sample_weight * y + (torch.ones(len(y)) - y)
+            sample_weights_train = args.positive_sample_weight * y + (torch.ones(len(y), device=device) - y)
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, y, weight=sample_weights_train)
             loss.backward()
             total_train_loss = total_train_loss + loss
@@ -84,7 +85,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
             # This is called twice
             model.eval()
             loss, val_pre, val_re, val_ap, val_unobserved_pre, val_unobserved_re, val_unobserved_ap = compute_metrics(
-                val_data, model, threshold)
+                val_data, model, device, threshold)
 
             if trial:
                 trial.report(val_ap, epoch)
@@ -167,10 +168,10 @@ if __name__ == '__main__':
         subqueries, subquery_shape = generate_subqueries(query_string=args.query_string, max_num_subquery_vars=args.max_num_subquery_vars)
 
         print('Training samples!')
-        train_data_objects = prep_data(train_labels, train_samples, train_nodes, train_masks, aug=args.aug,
+        train_data_objects = prep_data(labels=train_labels, sample_graphs=train_samples, nodes=train_nodes, masks=train_masks, device=device, aug=args.aug,
                                        subqueries=subqueries, types=types)
         print('Validation samples!')
-        val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
+        val_data_objects = prep_data(labels=val_labels, sample_graphs=val_samples, nodes=val_nodes, masks=val_masks, device=device, aug=args.aug,
                                      subqueries=subqueries, types=types)
 
         rels = set()
@@ -182,10 +183,10 @@ if __name__ == '__main__':
     else:
         subqueries = None
         print('Training samples!')
-        train_data_objects = prep_data(train_labels, train_samples, train_nodes, train_masks, aug=args.aug,
+        train_data_objects = prep_data(labels=train_labels, sample_graphs=train_samples, nodes=train_nodes, masks=train_masks, device=device, aug=args.aug,
                                        subqueries=subqueries, types=types)
         print('Validation samples!')
-        val_data_objects = prep_data(val_labels, val_samples, val_nodes, val_masks, aug=args.aug,
+        val_data_objects = prep_data(labels=val_labels, sample_graphs=val_samples, nodes=val_nodes, masks=val_masks, device=device, aug=args.aug,
                                      subqueries=subqueries, types=types)
 
         rels = set()
@@ -213,7 +214,7 @@ if __name__ == '__main__':
             n_startup_trials=5, n_warmup_steps=30, interval_steps=10))
         study.optimize(lambda trial: train(trial=trial, device=device, feat_dim=feat_dim, shapes_dict=shapes_dict,
                                     train_data=train_data_objects, val_data=val_data_objects,
-                                    log_directory=log_directory, model_directory=model_directory, args=args), n_trials=100)
+                                    log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args), n_trials=100)
 
         pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
         complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])

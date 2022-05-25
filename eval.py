@@ -8,18 +8,18 @@ from load_watdiv import load_watdiv_benchmark
 from load_fb15k237 import load_fb15k237_benchmark
 
 
-def compute_metrics(data, model, threshold=0.5):
+def compute_metrics(data, model, device, threshold=0.5):
     loss = 0
-    precision = torchmetrics.Precision(threshold=threshold)
-    recall = torchmetrics.Recall(threshold=threshold)
-    average_precision = torchmetrics.AveragePrecision()
-    unobserved_precision = torchmetrics.Precision(threshold=threshold)
-    unobserved_recall = torchmetrics.Recall(threshold=threshold)
-    unobserved_average_precision = torchmetrics.AveragePrecision()
+    precision = torchmetrics.Precision(threshold=threshold).to(device)
+    recall = torchmetrics.Recall(threshold=threshold).to(device)
+    average_precision = torchmetrics.AveragePrecision().to(device)
+    unobserved_precision = torchmetrics.Precision(threshold=threshold).to(device)
+    unobserved_recall = torchmetrics.Recall(threshold=threshold).to(device)
+    unobserved_average_precision = torchmetrics.AveragePrecision().to(device)
     model.eval()
     counter = 1
     for data_object in data:
-        pred = model(data_object['feat'], data_object['indices_dict']).flatten()
+        pred = model(data_object['feat'], data_object['indices_dict'], device).flatten()
         pred = pred[data_object['nodes']]
         y = data_object['labels']
         loss = loss + torch.nn.functional.binary_cross_entropy(pred, y)
@@ -53,16 +53,16 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
         print(type(param.data), param.size())
 
     if 'fb15k237' in test_data[0]:
-        test_samples, test_answers, types, test_labels, mask_observed, graphs = load_fb15k237_benchmark(test_data[0])
+        test_samples, test_nodes, types, test_labels, mask_observed, graphs = load_fb15k237_benchmark(test_data[0])
     else:
-        test_samples, test_answers, types, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data,
+        test_samples, test_nodes, types, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data,
                                                                                                model.query_string)
 
-    test_data_objects = prep_data(test_labels, test_samples, test_answers, mask_observed, aug=aug,
+    test_data_objects = prep_data(labels=test_labels, sample_graphs=test_samples, nodes=test_nodes, masks=mask_observed, aug=aug, device=device,
                                   subqueries=model.subqueries, types=types)
 
     _, test_pre, test_re, test_ap, test_unobserved_pre, test_unobserved_re, test_unobserved_ap = compute_metrics(
-        test_data_objects, model)
+        test_data_objects, model, device)
 
     print('Testing!')
     print('Precision for all samples: ' + str(test_pre))
