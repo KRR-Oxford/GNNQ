@@ -4,6 +4,7 @@ import torchmetrics
 import os
 import optuna
 from optuna.trial import TrialState
+from optuna.samplers import RandomSampler
 from datetime import datetime
 from model import HGNN
 from data_utils import generate_subqueries, prep_data
@@ -20,7 +21,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     if trial:
         print('Starting trial-{}!'.format(trial.number))
         args.base_dim = trial.suggest_int('base_dim', 8, 64)
-        args.learning_rate = trial.suggest_float("learning_rate", 0.001, 0.1, step=0.005)
+        args.learning_rate = trial.suggest_float("learning_rate", 0.000, 0.1, step=0.005)
         args.positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 100)
         args.negative_slope = trial.suggest_float('negative_slope', 0.0, 0.5, step=0.1)
         with open(os.path.join(log_directory, 'trial-{}-config.txt'.format(trial.number)), 'w') as f:
@@ -46,7 +47,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
     # This is the main training loop
     val_ap = 0
-    for epoch in range(args.epochs):
+    for epoch in range(1, args.epochs + 1):
         print('Epoch-{0}!'.format(epoch))
         model.train()
         optimizer.zero_grad()
@@ -141,9 +142,13 @@ if __name__ == '__main__':
     parser.add_argument('--negative_slope', type=float, default=0.1)
     parser.add_argument('--positive_sample_weight', type=int, default=1)
     parser.add_argument('--tune_param', action='store_true', default=False)
+    parser.add_argument('--gpu', action='store_true', default=False)
     args = parser.parse_args()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.gpu:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cpu")
 
     now = datetime.now()
     date_time = now.strftime("%d_%m_%Y_%H:%M:%S")
@@ -211,7 +216,7 @@ if __name__ == '__main__':
 
     else:
         study = optuna.create_study(direction='maximize', pruner=optuna.pruners.MedianPruner(
-            n_startup_trials=5, n_warmup_steps=30, interval_steps=10))
+            n_startup_trials=5, n_warmup_steps=30, interval_steps=10), sampler=RandomSampler(0))
         study.optimize(lambda trial: train(trial=trial, device=device, feat_dim=feat_dim, shapes_dict=shapes_dict,
                                     train_data=train_data_objects, val_data=val_data_objects,
                                     log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args), n_trials=100)
