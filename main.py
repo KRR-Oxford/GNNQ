@@ -200,10 +200,7 @@ if __name__ == '__main__':
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
 
-    if types:
-        feat_dim = len(types) + 1
-    else:
-        feat_dim = 1
+    feat_dim = len(train_data_objects[0]['feat'][0])
 
     # Function the contains the main train loop
     if not args.tune_param:

@@ -1,6 +1,9 @@
 import re
 import torch
 from collections import defaultdict
+
+import torch_scatter
+
 from subquery_generation import create_tree, create_subqueries, create_all_connceted_trees
 
 
@@ -52,7 +55,7 @@ def generate_subqueries(query_string, max_num_subquery_vars):
     for subquery in create_subqueries(trees):
         subqueries.append(subquery)
         subquery = subquery.replace(".", "")
-        shape = len(re.search("SELECT (.*) WHERE", subquery)[1].split()) - 1
+        shape = len(re.search("SELECT DISTINCT (.*) WHERE", subquery)[1].split()) - 1
         subquery_shape[subquery] = shape
     return subqueries, subquery_shape
 
@@ -60,6 +63,7 @@ def generate_subqueries(query_string, max_num_subquery_vars):
 # Computes answers for a list of subqueries
 def compute_subquery_answers(graph, entity2id, subqueries):
     subquery_answers = {}
+    unary_subquery_answers = []
     counter = 1
     for subquery in subqueries:
         qres = graph.query(subquery)
@@ -74,15 +78,24 @@ def compute_subquery_answers(graph, entity2id, subqueries):
             subquery_answers[subquery] = torch.tensor([])
             continue
         answers = torch.tensor(answers)
-        shape = answers.size()[1] - 1
-        subquery_answers[subquery] = torch.stack(
-            (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
-    return subquery_answers
+        if answers.size()[1] == 1:
+            answers = answers.squeeze()
+            unary_subquery_answers.append(answers)
+        else:
+            shape = answers.size()[1] - 1
+            subquery_answers[subquery] = torch.stack(
+                (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
+    feat = torch.zeros(len(unary_subquery_answers), len(entity2id))
+    unary_query_index = 0
+    for answers in unary_subquery_answers:
+        torch_scatter.scatter_max(src=torch.ones(len(answers)),index=answers, out=feat[unary_query_index])
+        unary_query_index += 1
+    return subquery_answers, feat.t()
 
 def augment_graph(indices_dict, sample_graph, entity2id, subqueries):
-    hyper_indices_dict = compute_subquery_answers(graph=sample_graph, entity2id=entity2id,
+    hyper_indices_dict, feat = compute_subquery_answers(graph=sample_graph, entity2id=entity2id,
                                                   subqueries=subqueries)
-    return {**indices_dict, **hyper_indices_dict}
+    return {**indices_dict, **hyper_indices_dict}, feat
 
 def create_feature_vectors(graph, entity2id, types):
     feat = torch.zeros(len(entity2id), len(types))
@@ -108,12 +121,13 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, devic
     else:
         # The benchmark queries do not contain unary predicates and thus we can ignore unary predicates
         feat = torch.zeros(num_nodes, 0)
+    if aug:
+        indices_dict, aug_feat = augment_graph(indices_dict, sample_graph, entity2id, subqueries)
+        feat = torch.cat((feat, aug_feat), dim=1)
+    # Append 1 as first entry of every feature vector
+    feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1).to(device)
     try:
-        # Append 1 as first entry of every feature vector
-        feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1).to(device)
         nodes = [entity2id[str(node)] for node in nodes]
-        if aug:
-           indices_dict = augment_graph(indices_dict, sample_graph, entity2id, subqueries)
         return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
                 'labels': torch.tensor(labels, dtype=torch.float, device=device), 'mask': mask}
     except KeyError:
