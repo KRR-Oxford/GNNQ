@@ -56,14 +56,13 @@ def generate_subqueries(query_string, max_num_subquery_vars):
         subqueries.append(subquery)
         subquery = subquery.replace(".", "")
         shape = len(re.search("SELECT DISTINCT (.*) WHERE", subquery)[1].split()) - 1
-        subquery_shape[subquery] = shape
+        if shape > 0:
+            subquery_shape[subquery] = shape
     return subqueries, subquery_shape
-
 
 # Computes answers for a list of subqueries
 def compute_subquery_answers(graph, entity2id, subqueries):
     subquery_answers = {}
-    unary_subquery_answers = []
     counter = 1
     for subquery in subqueries:
         qres = graph.query(subquery)
@@ -76,25 +75,32 @@ def compute_subquery_answers(graph, entity2id, subqueries):
         subquery = subquery.replace(".", "")
         if not answers:
             subquery_answers[subquery] = torch.tensor([])
-            continue
-        answers = torch.tensor(answers)
+        else:
+            subquery_answers[subquery] = torch.tensor(answers)
+    return subquery_answers
+
+def compute_hyperedge_indices_and_features(subquery_answers, num_nodes):
+    unary_subquery_answers = []
+    hyper_indices_dict = {}
+    for subquery, answers in subquery_answers.items():
         if answers.size()[1] == 1:
             answers = answers.squeeze()
             unary_subquery_answers.append(answers)
         else:
             shape = answers.size()[1] - 1
-            subquery_answers[subquery] = torch.stack(
+            hyper_indices_dict[subquery] = torch.stack(
                 (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
-    feat = torch.zeros(len(unary_subquery_answers), len(entity2id))
+    feat = torch.zeros(len(unary_subquery_answers), num_nodes)
     unary_query_index = 0
     for answers in unary_subquery_answers:
         torch_scatter.scatter_max(src=torch.ones(len(answers)),index=answers, out=feat[unary_query_index])
         unary_query_index += 1
-    return subquery_answers, feat.t()
+    return hyper_indices_dict, feat.t()
 
 def augment_graph(indices_dict, sample_graph, entity2id, subqueries):
-    hyper_indices_dict, feat = compute_subquery_answers(graph=sample_graph, entity2id=entity2id,
+    subquery_answers = compute_subquery_answers(graph=sample_graph, entity2id=entity2id,
                                                   subqueries=subqueries)
+    hyper_indices_dict, feat = compute_hyperedge_indices_and_features(subquery_answers, len(entity2id))
     return {**indices_dict, **hyper_indices_dict}, feat
 
 def create_feature_vectors(graph, entity2id, types):
