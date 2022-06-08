@@ -33,9 +33,9 @@ def load_watdiv_benchmark(directories, query_string):
     types = get_all_types()
     for directory in directories:
         print('Preparing dataset: ' + directory)
-        g = Graph()
+        g = Graph(store="Oxigraph")
         g.parse(os.path.join(directory, 'graph.nt'), format="nt")
-        corrupted_g = Graph()
+        corrupted_g = Graph(store="Oxigraph")
         corrupted_g.parse(os.path.join(directory, 'corrupted_graph.nt'), format="nt")
         pos_nodes = compute_query_answers(g, query_string)
         observed_nodes = compute_query_answers(corrupted_g, query_string)
