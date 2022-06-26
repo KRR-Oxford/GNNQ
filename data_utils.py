@@ -83,13 +83,14 @@ def compute_hyperedge_indices_and_features(subquery_answers, num_nodes):
     unary_subquery_answers = []
     hyper_indices_dict = {}
     for subquery, answers in subquery_answers.items():
-        if answers.size()[1] == 1:
-            answers = answers.squeeze()
-            unary_subquery_answers.append(answers)
-        else:
-            shape = answers.size()[1] - 1
-            hyper_indices_dict[subquery] = torch.stack(
-                (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
+        if answers.numel():
+            if answers.size()[1] == 1:
+                answers = torch.squeeze(answers, dim=1)
+                unary_subquery_answers.append(answers)
+            else:
+                shape = answers.size()[1] - 1
+                hyper_indices_dict[subquery] = torch.stack(
+                    (answers[:, 1:].flatten(), answers[:, 0].unsqueeze(1).repeat((1, shape)).flatten()), dim=0)
     feat = torch.zeros(len(unary_subquery_answers), num_nodes)
     unary_query_index = 0
     for answers in unary_subquery_answers:
@@ -121,7 +122,7 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, devic
         entity2id, _ = create_entity2id_dict(graph)
     entity2id, _ = create_entity2id_dict(sample_graph, entity2id)
     indices_dict = create_indices_dict(sample_graph, entity2id, device)
-    num_nodes = len(nodes)
+    num_nodes = len(entity2id)
     if types:
         feat = create_feature_vectors(sample_graph, entity2id, types)
     else:
