@@ -14,10 +14,10 @@ from load_watdiv import load_watdiv_benchmark
 from load_fb15k237 import load_fb15k237_benchmark
 
 
-# Function containing the main training loop
 def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
           summary_writer=None, trial=None):
 
+    # Samples hyperparameters if a trial object is passed to the train function
     if trial:
         print('Starting trial-{}!'.format(trial.number))
         args.base_dim = trial.suggest_int('base_dim', 8, 64)
@@ -30,7 +30,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         with open(os.path.join(log_directory, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-    # This is the definition of the model
+    # Creates a model instance
     model = HGNN(query_string=args.query_string, feat_dim=feat_dim, base_dim=args.base_dim, shapes_dict=shapes_dict,
                  num_layers=args.num_layers, negative_slope=args.negative_slope, subqueries=subqueries)
 
@@ -40,12 +40,11 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
-    # Needs to be defined as module in the HGNN class to automatically move to GPU
     threshold = 0.5
     train_precision = torchmetrics.Precision(threshold=threshold).to(device)
     train_recall = torchmetrics.Recall(threshold=threshold).to(device)
 
-    # This is the main training loop
+    # Main training loop
     val_ap = 0
     for epoch in range(1, args.epochs + 1):
         print('Epoch-{0}!'.format(epoch))
@@ -56,7 +55,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
         print('Training!')
 
-        # Loop through data objects in a batch
+        # Loops through data objects in a batch
         for data_object in batch:
             pred = model(data_object['feat'], data_object['indices_dict'], logits=True, device=device).flatten()
             pred = pred[data_object['nodes']]
@@ -83,7 +82,6 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         train_precision.reset()
         train_recall.reset()
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            # This is called twice
             model.eval()
             loss, val_pre, val_re, val_ap, val_unobserved_pre, val_unobserved_re, val_unobserved_ap = compute_metrics(
                 val_data, model, device, threshold)
@@ -159,7 +157,7 @@ if __name__ == '__main__':
     if not os.path.exists(model_directory):
         os.makedirs(model_directory)
 
-    # Load data
+    # Loads data
     if 'fb15k237' in args.train_data[0]:
         train_samples, train_nodes, types, train_labels, train_masks, graphs = load_fb15k237_benchmark(args.train_data[0])
         val_samples, val_nodes, types, val_labels, val_masks, graphs = load_fb15k237_benchmark(args.val_data[0])
@@ -168,7 +166,7 @@ if __name__ == '__main__':
                                                                                               args.query_string)
         val_samples, val_nodes, types, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
 
-    # Create data objects
+    # Preprocesses the data
     if args.aug:
         subqueries, subquery_shape = generate_subqueries(query_string=args.query_string, max_num_subquery_vars=args.max_num_subquery_vars)
 
@@ -202,7 +200,7 @@ if __name__ == '__main__':
 
     feat_dim = len(train_data_objects[0]['feat'][0])
 
-    # Function the contains the main train loop
+    # Starts the training loop
     if not args.tune_param:
         train(device=device, feat_dim=feat_dim, shapes_dict=shapes_dict, train_data=train_data_objects,
             val_data=val_data_objects, log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args)
