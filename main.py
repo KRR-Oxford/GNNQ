@@ -14,8 +14,7 @@ from load_watdiv import load_watdiv_benchmark
 from load_fb15k237 import load_fb15k237_benchmark
 
 
-def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None,
-          summary_writer=None, trial=None):
+def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, model_directory, args, subqueries=None, trial=None):
 
     # Samples hyperparameters if a trial object is passed to the train function
     if trial:
@@ -75,19 +74,12 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         re = train_recall.compute().item()
         print('Precision for all samples: ' + str(pre))
         print('Recall for all samples: ' + str(re))
-        if summary_writer:
-            summary_writer.add_scalar('Loss for all training samples.', total_train_loss, epoch)
-            summary_writer.add_scalar('Precision for all training samples.', pre, epoch)
-            summary_writer.add_scalar('Recall for all training samples.', re, epoch)
         train_precision.reset()
         train_recall.reset()
         if (epoch != 0) and (epoch % args.val_epochs == 0):
             model.eval()
             loss, val_pre, val_re, val_ap, val_unobserved_pre, val_unobserved_re, val_unobserved_ap = compute_metrics(
                 val_data, model, device, threshold)
-
-            if trial:
-                trial.report(val_ap, epoch)
 
             print('Validating!')
             print('Validation loss: ' + str(loss.item()))
@@ -97,18 +89,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
             print('Precision for unmasked samples:  ' + str(val_unobserved_pre))
             print('Recall for unmasked samples: ' + str(val_unobserved_re))
             print('AP for unmasked samples: ' + str(val_unobserved_ap))
-            if summary_writer:
-                summary_writer.add_scalar('Loss for all validations samples.', loss, epoch)
-                summary_writer.add_scalar('Precision for all validations samples.', val_pre, epoch)
-                summary_writer.add_scalar('Recall for all validations samples.', val_re, epoch)
-                summary_writer.add_scalar('AP for all all validations samples.', val_ap, epoch)
-                summary_writer.add_scalar('Precision for unmasked validation samples.',
-                                          val_unobserved_pre, epoch)
-                summary_writer.add_scalar('Recall for unmasked validation samples.',
-                                          val_unobserved_re, epoch)
-                summary_writer.add_scalar('AP for unmasked validation samples.', val_unobserved_ap,
-                                          epoch)
+
             if trial:
+                trial.report(val_ap, epoch)
                 if trial.should_prune():
                     raise optuna.exceptions.TrialPruned()
 
