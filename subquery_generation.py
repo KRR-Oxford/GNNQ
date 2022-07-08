@@ -1,10 +1,9 @@
 from rdflib.plugins.sparql import prepareQuery
-from rdflib import Graph, Variable, URIRef
+from rdflib import Variable, URIRef
 from anytree import Node, RenderTree, LevelOrderIter, find_by_attr
 import itertools
-import math
 
-
+# Extension of the anytree node class
 class CustomNode(Node):
     def __init__(self, name, is_rel=False, is_inv=False, is_leaf_in_q=False, parent=None, children=None):
         super().__init__(name, parent, children)
@@ -14,8 +13,7 @@ class CustomNode(Node):
 
     separator = "|"
 
-
-# Create tree representation of the query
+# Creates an anytree tree representing a given query string
 def create_tree(query_string):
     q = prepareQuery(query_string)
     answer_variable = str(q.algebra.p.p.PV[0])
@@ -47,8 +45,7 @@ def create_tree(query_string):
     return root
 
 
-### Naive approach to create subqueries
-# Computes all variables that occur together in a connected subquery which contains the answer variable
+# Computes a list variables that occur together in a connected subquery which contains the answer variable
 def compute_subquery_nodes_root(node):
     if not node.children:
         return [node.name]
@@ -78,7 +75,7 @@ def flatten2list(object):
     return gather
 
 
-# Function that computes all sets of variables that occur together in a connected subquery
+# Computes a list of lists where each element specifies the variables that occur together in a connected subquery
 def compute_subquery_nodes(node):
     unflattened = compute_subquery_nodes_root(node) + compute_subquery_nodes_no_root(node)
     res = []
@@ -89,7 +86,7 @@ def compute_subquery_nodes(node):
     return res
 
 
-# Creates subquery tree from a node set
+# Creates anytree tree representing a subquery from a list of variables
 def create_subtree_from_nodeset(root, nodes):
     new_root = None
     for node in LevelOrderIter(root):
@@ -103,7 +100,7 @@ def create_subtree_from_nodeset(root, nodes):
     return new_root
 
 
-# Creates subquery trees for all connected subqueries up to a specified size
+# Creates a list containing an anytree tree for every connected subquery
 def create_all_connceted_trees(root, max_num_subquery_vars=100):
     subquery_nodes = compute_subquery_nodes(root)
     trees = []
@@ -116,43 +113,7 @@ def create_all_connceted_trees(root, max_num_subquery_vars=100):
     return trees
 
 
-## Greedy approach to create subqueries - Not used in the experiments
-def max_depth(node):
-    deep = node
-    for leaf in node.leaves:
-        if deep.depth < leaf.depth:
-            deep = leaf
-    return deep
-
-
-# Creates subqueries trees in a greedy way from the query tree
-def create_subquery_trees(root, subquery_depth):
-    l = max_depth(root)
-    if math.floor(l.depth / 2) < 2 or subquery_depth < 2:
-        return []
-    if math.floor(l.depth / 2) < subquery_depth:
-        return [root]
-    c = 1
-    cp_p = None
-    while c <= subquery_depth:
-        rel = l.parent
-        p = rel.parent
-        if c == subquery_depth and p.children:
-            cp_p = CustomNode(p.name)
-            rel.parent = cp_p
-            for child in p.children:
-                if not child.children[0].is_leaf:
-                    child.parent = cp_p
-                else:
-                    child.parent = None
-        l = p
-        c = c + 1
-    for pre, fill, node in RenderTree(cp_p):
-        print("%s%s" % (pre, node.name))
-    return create_subquery_trees(root, subquery_depth) + [cp_p]
-
-
-# Create subquery strings based on the tree representation of the subqueries
+# Creates a SPARQL string given an anytree tree representation of a subquery
 def create_subqueries(trees, all_vars=False):
     queries = []
     for tree in trees:
@@ -177,14 +138,8 @@ def create_subqueries(trees, all_vars=False):
 
 
 if __name__ == '__main__':
-    g = Graph()
-    g.parse('./datasets/watdiv/dummy/corrupted_graph.nt', format='nt')
     query = 'SELECT distinct ?v2 WHERE { ?v0 <http://schema.org/legalName> ?v1 . ?v0 <http://purl.org/goodrelations/offers> ?v2 . ?v2  <http://schema.org/eligibleRegion> ?v10 . ?v2  <http://purl.org/goodrelations/includes> ?v3 . ?v4 <http://schema.org/jobTitle> ?v5 . ?v4 <http://xmlns.com/foaf/homepage> ?v6 . ?v4 <http://db.uwaterloo.ca/~galuc/wsdbm/makesPurchase> ?v7 . ?v7 <http://db.uwaterloo.ca/~galuc/wsdbm/purchaseFor> ?v3 . ?v3 <http://purl.org/stuff/rev#hasReview> ?v8 . ?v8 <http://purl.org/stuff/rev#totalVotes> ?v9 }'
     root = create_tree(query)
-    # trees = create_subquery_trees(root,2)
     trees = create_all_connceted_trees(root, 8)
     print('{} sub-queries have been created!'.format(len(trees)))
     queries = create_subqueries(trees)
-    for query in queries:
-        qres = g.query(query)
-        print(len(qres))
