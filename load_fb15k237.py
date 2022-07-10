@@ -38,6 +38,7 @@ def load_fb15k237_benchmark(data):
     neg_samples = []
     for file in files:
         filename = os.fsdecode(file)
+        print(filename)
         if filename.endswith(".nt"):
             g = Graph(store="Oxigraph")
             g.parse(os.path.join(data,'neg_samples/' + filename), format="nt")
