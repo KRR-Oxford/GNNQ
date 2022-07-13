@@ -1,9 +1,7 @@
 import re
 import torch
-from collections import defaultdict
-
 import torch_scatter
-
+from collections import defaultdict
 from subquery_generation import create_tree, create_subqueries, create_all_connceted_trees
 
 
@@ -138,10 +136,50 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, devic
     try:
         nodes = [entity2id[str(node)] for node in nodes]
         return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
-                'labels': torch.tensor(labels, dtype=torch.float, device=device), 'mask': mask}
+                'labels': torch.tensor(labels, dtype=torch.float, device=device), 'mask': mask, 'num_nodes':num_nodes}
     except KeyError:
         print('Failed to create data object!')
         return None
+
+def create_batch_data_object(data_objects):
+    indices_dict = {}
+    nodes = None
+    feat = None
+    labels = None
+    mask = None
+    shift = 0
+    for data_object in data_objects:
+        if nodes is None:
+            nodes = data_object['nodes']
+        else:
+            nodes = torch.cat((nodes, data_object['nodes'] + shift))
+        if feat is None:
+            feat = data_object['feat']
+        else:
+            feat = torch.cat((feat, data_object['feat']), dim=0)
+        if labels is None:
+            labels = data_object['labels']
+        else:
+            labels = torch.cat((labels, data_object['labels']), dim=0)
+        if mask is None:
+            mask = data_object['mask']
+        else:
+            mask = mask + data_object['mask']
+        for key, val in data_object['indices_dict'].items():
+            if key not in indices_dict.keys():
+                indices_dict[key] = val
+            else:
+                indices = indices_dict[key]
+                indices = torch.cat((indices, val + shift), dim=1)
+                indices_dict[key] = indices
+
+        shift = shift + data_object['num_nodes']
+
+    return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
+                'labels': labels, 'mask': mask}
+
+
+
 
 def prep_data(labels, sample_graphs, nodes, masks, aug, device, types=None, subqueries=None, graphs=None):
     data = []
