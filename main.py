@@ -45,11 +45,11 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
     # Main training loop
     val_ap = 0
-    val_data = [create_batch_data_object(val_data)]
     for epoch in range(1, args.epochs + 1):
         print('Epoch-{0}!'.format(epoch))
         model.train()
         optimizer.zero_grad()
+        torch.cuda.empty_cache()
         total_train_loss = 0
         # Creates batch with specified batch size
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
@@ -200,7 +200,7 @@ if __name__ == '__main__':
             n_startup_trials=5, n_warmup_steps=30, interval_steps=10), sampler=RandomSampler(0))
         study.optimize(lambda trial: train(trial=trial, device=device, feat_dim=feat_dim, shapes_dict=shapes_dict,
                                     train_data=train_data_objects, val_data=val_data_objects,
-                                    log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args), n_trials=100)
+                                    log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args), n_trials=100, gc_after_trial=True)
 
         pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
         complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])

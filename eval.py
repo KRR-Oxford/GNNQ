@@ -3,7 +3,7 @@ import os
 import json
 import argparse
 import torchmetrics
-from data_utils import prep_data
+from data_utils import prep_data, create_batch_data_object
 from load_watdiv import load_watdiv_benchmark
 from load_fb15k237 import load_fb15k237_benchmark
 
@@ -18,6 +18,7 @@ def compute_metrics(data, model, device, threshold=0.5):
     unobserved_average_precision = torchmetrics.AveragePrecision().to(device)
     model.eval()
     counter = 1
+    data = [create_batch_data_object(data[x:x + 50]) for x in range(0, len(data), 50)]
     for data_object in data:
         pred = model(data_object['feat'], data_object['indices_dict'], device).flatten()
         pred = pred[data_object['nodes']]
