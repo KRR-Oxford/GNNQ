@@ -21,7 +21,7 @@ def compute_metrics(data, model, device, threshold=0.5):
     for data_object in data:
         pred = model(data_object['feat'], data_object['indices_dict'], device).flatten()
         pred = pred[data_object['nodes']]
-        y = data_object['labels']
+        y = data_object['labels'].to(device)
         loss = loss + torch.nn.functional.binary_cross_entropy(pred, y)
         precision(pred, y.int())
         recall(pred, y.int())

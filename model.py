@@ -27,11 +27,13 @@ class HGNNLayer(nn.Module):
     def forward(self, x, indices_dict, device):
         dest_indices = torch.tensor([], dtype=torch.int16, device=device)
         msgs = torch.tensor([], dtype=torch.float16, device=device)
+        x = x.to(device)
         # Loops through all edge types
         for edge, edge_indices in indices_dict.items():
             # Check whether edge type is in shapes dict and the graph contains edges of this type
+            edge_indices = edge_indices.to(device)
             if (edge in self.shapes_dict.keys()) and edge_indices.numel():
-                i = torch.reshape(edge_indices[1], (-1, self.shapes_dict[edge])).to(device)
+                i = torch.reshape(edge_indices[1], (-1, self.shapes_dict[edge]))
                 # Computes indices for scatter function
                 i = i[:, 0]
                 dest_indices = torch.cat((dest_indices, i), dim=0)

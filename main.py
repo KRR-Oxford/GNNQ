@@ -7,7 +7,7 @@ from optuna.trial import TrialState
 from optuna.samplers import RandomSampler
 from datetime import datetime
 from model import HGNN
-from data_utils import generate_subqueries, prep_data
+from data_utils import generate_subqueries, prep_data, create_batch_data_object
 from eval import eval, compute_metrics
 import json
 from load_watdiv import load_watdiv_benchmark
@@ -45,6 +45,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
     # Main training loop
     val_ap = 0
+    val_data = [create_batch_data_object(val_data)]
     for epoch in range(1, args.epochs + 1):
         print('Epoch-{0}!'.format(epoch))
         model.train()
@@ -52,13 +53,14 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         total_train_loss = 0
         # Creates batch with specified batch size
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
+        if args.batch_size > 1:
+            batch = [create_batch_data_object(batch)]
         print('Training!')
-
         # Loops through data objects in a batch
         for data_object in batch:
             pred = model(data_object['feat'], data_object['indices_dict'], logits=True, device=device).flatten()
             pred = pred[data_object['nodes']]
-            y = data_object['labels']
+            y = data_object['labels'].to(device)
             sample_weights_train = args.positive_sample_weight * y + (torch.ones(len(y), device=device) - y)
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, y, weight=sample_weights_train)
             loss.backward()
@@ -103,6 +105,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
 
 
 if __name__ == '__main__':
+    torch.cuda.empty_cache()
     torch.manual_seed(0)
 
     parser = argparse.ArgumentParser(description='')

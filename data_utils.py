@@ -39,8 +39,8 @@ def create_indices_dict(graph, entity2id, device):
             indices_dict[str(p).replace('.', '')].append([entity2id[sub], entity2id[obj]])
 
     # Add inverse edges for every edge
-    indices_dict = {**{k: torch.tensor(v, device=device).t() for k, v in indices_dict.items()},
-                    **{k + "_inv": torch.tensor(v, device=device).t()[[1, 0]] for k, v in indices_dict.items()}}
+    indices_dict = {**{k: torch.tensor(v).t() for k, v in indices_dict.items()},
+                    **{k + "_inv": torch.tensor(v).t()[[1, 0]] for k, v in indices_dict.items()}}
     return indices_dict
 
 
@@ -132,11 +132,11 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, devic
         indices_dict, aug_feat = augment_graph(indices_dict, sample_graph, entity2id, subqueries)
         feat = torch.cat((feat, aug_feat), dim=1)
     # Append 1 as first entry of every feature vector
-    feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1).to(device)
+    feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1)
     try:
         nodes = [entity2id[str(node)] for node in nodes]
         return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
-                'labels': torch.tensor(labels, dtype=torch.float, device=device), 'mask': mask, 'num_nodes':num_nodes}
+                'labels': torch.tensor(labels, dtype=torch.float), 'mask': mask, 'num_nodes':num_nodes}
     except KeyError:
         print('Failed to create data object!')
         return None
