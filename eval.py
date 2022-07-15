@@ -16,8 +16,6 @@ def compute_metrics(data, model, device, threshold=0.5):
     unobserved_precision = torchmetrics.Precision(threshold=threshold).to(device)
     unobserved_recall = torchmetrics.Recall(threshold=threshold).to(device)
     unobserved_average_precision = torchmetrics.AveragePrecision().to(device)
-    # cpu = torch.device("cpu")
-    # model.to(cpu)
     model.eval()
     counter = 1
     if len(data) > 20:
@@ -25,7 +23,6 @@ def compute_metrics(data, model, device, threshold=0.5):
     for data_object in data:
         torch.cuda.empty_cache()
         pred = model(data_object['feat'], data_object['indices_dict'], device).flatten()
-        # pred = pred[data_object['nodes']].detach().clone().to(device)
         pred = pred[data_object['nodes']]
         y = data_object['labels'].to(device)
         loss = loss + torch.nn.functional.binary_cross_entropy(pred, y)
@@ -49,7 +46,6 @@ def compute_metrics(data, model, device, threshold=0.5):
     unobserved_precision.reset()
     unobserved_recall.reset()
     unobserved_average_precision.reset()
-    # model.to(device)
     return loss, pre, re, ap, unobserved_pre, unobserved_re, unobserved_ap
 
 

@@ -53,7 +53,8 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         total_train_loss = 0
         # Creates batch with specified batch size
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
-        if args.batch_size > 10:
+        # Batches KGs for FB15k237 benchmarks for parallel processing
+        if len(train_data) > 20:
             batch = [create_batch_data_object(batch)]
         print('Training!')
         # Loops through data objects in a batch
@@ -121,11 +122,11 @@ if __name__ == '__main__':
     parser.add_argument('--max_num_subquery_vars', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--val_epochs', type=int, default=25)
-    parser.add_argument('--base_dim', type=int, default=64)
+    parser.add_argument('--base_dim', type=int, default=16)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
-    parser.add_argument('--learning_rate', type=float, default=0.01)
-    parser.add_argument('--negative_slope', type=float, default=0.1)
+    parser.add_argument('--learning_rate', type=float, default=0.001)
+    parser.add_argument('--negative_slope', type=float, default=0.01)
     parser.add_argument('--positive_sample_weight', type=int, default=1)
     parser.add_argument('--tune_param', action='store_true', default=False)
     parser.add_argument('--gpu', action='store_true', default=False)

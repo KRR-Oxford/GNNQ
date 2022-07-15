@@ -114,7 +114,7 @@ def create_all_connceted_trees(root, max_num_subquery_vars=100):
 
 
 # Creates a SPARQL string given an anytree tree representation of a subquery
-def create_subqueries(trees, all_vars=False):
+def create_subqueries(trees, all_vars=True):
     queries = []
     for tree in trees:
         triples = []
