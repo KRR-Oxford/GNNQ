@@ -22,16 +22,16 @@ def compute_metrics(data, model, device, threshold=0.5):
         data = [create_batch_data_object(data[x:x + 50]) for x in range(0, len(data), 50)]
     for data_object in data:
         torch.cuda.empty_cache()
-        pred = model(data_object['feat'], data_object['indices_dict'], device).flatten()
-        pred = pred[data_object['nodes']]
-        y = data_object['labels'].to(device)
+        pred = model(data_object.x, data_object.indices_dict, device).flatten()
+        pred = pred[data_object.nodes]
+        y = data_object.y.to(device)
         loss = loss + torch.nn.functional.binary_cross_entropy(pred, y)
         precision(pred, y.int())
         recall(pred, y.int())
         average_precision(pred, y.int())
-        unobserved_precision(pred[data_object['mask']], y[data_object['mask']].int())
-        unobserved_recall(pred[data_object['mask']], y[data_object['mask']].int())
-        unobserved_average_precision(pred[data_object['mask']], y[data_object['mask']].int())
+        unobserved_precision(pred[data_object.mask], y[data_object.mask].int())
+        unobserved_recall(pred[data_object.mask], y[data_object.mask].int())
+        unobserved_average_precision(pred[data_object.mask], y[data_object.mask].int())
         print('Processed {0}/{1} samples!'.format(counter, len(data)))
         counter += 1
     pre = precision.compute().item()

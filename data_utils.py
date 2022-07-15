@@ -4,6 +4,14 @@ import torch_scatter
 from collections import defaultdict
 from subquery_generation import create_tree, create_subqueries, create_all_connceted_trees
 
+class Data:
+    def __init__(self, indices_dict, nodes, x, y, mask, num_nodes):
+        self.indices_dict = indices_dict
+        self.nodes = nodes
+        self.x = x
+        self.y = y
+        self.mask = mask
+        self.num_nodes = num_nodes
 
 def create_entity2id_dict(graph, entity2id=None):
     if entity2id is None:
@@ -135,8 +143,8 @@ def create_data_object(labels, sample_graph, nodes, mask, aug, subqueries, devic
     feat = torch.cat((torch.ones(num_nodes, 1), feat), dim=1)
     try:
         nodes = [entity2id[str(node)] for node in nodes]
-        return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
-                'labels': torch.tensor(labels, dtype=torch.float), 'mask': mask, 'num_nodes':num_nodes}
+        return Data(indices_dict=indices_dict, nodes=torch.tensor(nodes), x=feat,
+                y=torch.tensor(labels, dtype=torch.float), mask=mask, num_nodes=num_nodes)
     except KeyError:
         print('Failed to create data object!')
         return None
@@ -150,22 +158,22 @@ def create_batch_data_object(data_objects):
     shift = 0
     for data_object in data_objects:
         if nodes is None:
-            nodes = data_object['nodes']
+            nodes = data_object.nodes
         else:
-            nodes = torch.cat((nodes, data_object['nodes'] + shift))
+            nodes = torch.cat((nodes, data_object.nodes + shift))
         if feat is None:
-            feat = data_object['feat']
+            feat = data_object.x
         else:
-            feat = torch.cat((feat, data_object['feat']), dim=0)
+            feat = torch.cat((feat, data_object.x), dim=0)
         if labels is None:
-            labels = data_object['labels']
+            labels = data_object.y
         else:
-            labels = torch.cat((labels, data_object['labels']), dim=0)
+            labels = torch.cat((labels, data_object.y), dim=0)
         if mask is None:
-            mask = data_object['mask']
+            mask = data_object.mask
         else:
-            mask = mask + data_object['mask']
-        for key, val in data_object['indices_dict'].items():
+            mask = mask + data_object.mask
+        for key, val in data_object.indices_dict.items():
             if key not in indices_dict.keys():
                 indices_dict[key] = val
             else:
@@ -173,10 +181,10 @@ def create_batch_data_object(data_objects):
                 indices = torch.cat((indices, val + shift), dim=1)
                 indices_dict[key] = indices
 
-        shift = shift + data_object['num_nodes']
+        shift = shift + data_object.num_nodes
 
-    return {'indices_dict': indices_dict, 'nodes': torch.tensor(nodes), 'feat': feat,
-                'labels': labels, 'mask': mask}
+    return Data(indices_dict=indices_dict, nodes=torch.tensor(nodes), x=feat,
+                y=labels, mask=mask, num_nodes=shift)
 
 
 

@@ -59,9 +59,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         print('Training!')
         # Loops through data objects in a batch
         for data_object in batch:
-            pred = model(data_object['feat'], data_object['indices_dict'], logits=True, device=device).flatten()
-            pred = pred[data_object['nodes']]
-            y = data_object['labels'].to(device)
+            pred = model(data_object.x, data_object.indices_dict, logits=True, device=device).flatten()
+            pred = pred[data_object.nodes]
+            y = data_object.y.to(device)
             sample_weights_train = args.positive_sample_weight * y + (torch.ones(len(y), device=device) - y)
             loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, y, weight=sample_weights_train)
             loss.backward()
@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
         rels = set()
         for d in train_data_objects + val_data_objects:
-            for k in d['indices_dict'].keys():
+            for k in d.indices_dict.keys():
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
         shapes_dict = {**shapes_dict, **subquery_shape}
@@ -183,11 +183,11 @@ if __name__ == '__main__':
 
         rels = set()
         for d in train_data_objects + val_data_objects:
-            for k in d['indices_dict'].keys():
+            for k in d.indices_dict.keys():
                 rels.add(k)
         shapes_dict = {k: 1 for k in rels}
 
-    feat_dim = len(train_data_objects[0]['feat'][0])
+    feat_dim = len(train_data_objects[0].x[0])
 
     # Starts the training loop
     if not args.tune_param:
