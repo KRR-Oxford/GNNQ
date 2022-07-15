@@ -20,9 +20,9 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
     if trial:
         print('Starting trial-{}!'.format(trial.number))
         args.base_dim = trial.suggest_int('base_dim', 8, 64)
-        args.learning_rate = trial.suggest_float("learning_rate", 0.000, 0.1, step=0.005)
+        args.learning_rate = trial.suggest_float("learning_rate", 0.0001, 0.1001, step=0.0005) #default 0.001
+        args.negative_slope = trial.suggest_float('negative_slope', 0.001, 0.101, step=0.005) #default 0.01
         args.positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 100)
-        args.negative_slope = trial.suggest_float('negative_slope', 0.0, 0.5, step=0.1)
         with open(os.path.join(log_directory, 'trial-{}-config.txt'.format(trial.number)), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
     else:
@@ -53,7 +53,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         total_train_loss = 0
         # Creates batch with specified batch size
         batch = [train_data[i] for i in torch.randperm(len(train_data))[:args.batch_size]]
-        if args.batch_size > 1:
+        if args.batch_size > 10:
             batch = [create_batch_data_object(batch)]
         print('Training!')
         # Loops through data objects in a batch
@@ -78,24 +78,26 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         print('Recall for all samples: ' + str(re))
         train_precision.reset()
         train_recall.reset()
+
         if (epoch != 0) and (epoch % args.val_epochs == 0):
-            model.eval()
-            loss, val_pre, val_re, val_ap, val_unobserved_pre, val_unobserved_re, val_unobserved_ap = compute_metrics(
-                val_data, model, device, threshold)
+            with torch.no_grad():
+                model.eval()
+                loss, val_pre, val_re, val_ap, val_unobserved_pre, val_unobserved_re, val_unobserved_ap = compute_metrics(
+                    val_data, model, device, threshold)
 
-            print('Validating!')
-            print('Validation loss: ' + str(loss.item()))
-            print('Precision for all samples:  ' + str(val_pre))
-            print('Recall for all samples: ' + str(val_re))
-            print('AP for all samples: ' + str(val_ap))
-            print('Precision for unmasked samples:  ' + str(val_unobserved_pre))
-            print('Recall for unmasked samples: ' + str(val_unobserved_re))
-            print('AP for unmasked samples: ' + str(val_unobserved_ap))
+                print('Validating!')
+                print('Validation loss: ' + str(loss.item()))
+                print('Precision for all samples:  ' + str(val_pre))
+                print('Recall for all samples: ' + str(val_re))
+                print('AP for all samples: ' + str(val_ap))
+                print('Precision for unmasked samples:  ' + str(val_unobserved_pre))
+                print('Recall for unmasked samples: ' + str(val_unobserved_re))
+                print('AP for unmasked samples: ' + str(val_unobserved_ap))
 
-            if trial:
-                trial.report(val_ap, epoch)
-                if trial.should_prune():
-                    raise optuna.exceptions.TrialPruned()
+                if trial:
+                    trial.report(val_ap, epoch)
+                    if trial.should_prune():
+                        raise optuna.exceptions.TrialPruned()
 
     if trial:
         torch.save(model, os.path.join(model_directory, 'trial-{}-model.pt'.format(trial.number)))
@@ -117,9 +119,9 @@ if __name__ == '__main__':
     parser.add_argument('--aug', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
     parser.add_argument('--max_num_subquery_vars', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=40)
-    parser.add_argument('--val_epochs', type=int, default=10)
-    parser.add_argument('--base_dim', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--val_epochs', type=int, default=25)
+    parser.add_argument('--base_dim', type=int, default=64)
     parser.add_argument('--num_layers', type=int, default=4)
     parser.add_argument('--epochs', type=int, default=250)
     parser.add_argument('--learning_rate', type=float, default=0.01)
@@ -220,7 +222,8 @@ if __name__ == '__main__':
             print("    {}: {}".format(key, value))
 
         if args.test:
-            print('Start Testing!')
-            eval(test_data=args.test_data, model_directory=os.path.join(model_directory, 'trial-{}-model.pt'.format(trial.number)), aug=args.aug, device=device)
+            with torch.no_grad():
+                print('Start Testing!')
+                eval(test_data=args.test_data, model_directory=os.path.join(model_directory, 'trial-{}-model.pt'.format(trial.number)), aug=args.aug, device=device)
 
 
