@@ -151,9 +151,9 @@ if __name__ == '__main__':
         train_samples, train_nodes, types, train_labels, train_masks, graphs = load_fb15k237_benchmark(args.train_data[0])
         val_samples, val_nodes, types, val_labels, val_masks, graphs = load_fb15k237_benchmark(args.val_data[0])
     else:
-        train_samples, train_nodes, types, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data,
+        train_samples, train_nodes, types, train_labels, train_masks, graphs = load_watdiv_benchmark(args.train_data[0],
                                                                                               args.query_string)
-        val_samples, val_nodes, types, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
+        val_samples, val_nodes, types, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data[0], args.query_string)
 
     # Augments the data
     if args.aug:

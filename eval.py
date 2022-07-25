@@ -58,7 +58,7 @@ def eval(test_data, model_directory, aug, device, summary_writer=None):
     if 'fb15k237' in test_data[0]:
         test_samples, test_nodes, types, test_labels, mask_observed, graphs = load_fb15k237_benchmark(test_data[0])
     else:
-        test_samples, test_nodes, types, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data,
+        test_samples, test_nodes, types, test_labels, mask_observed, graphs = load_watdiv_benchmark(test_data[0],
                                                                                                model.query_string)
 
     test_data_objects = prep_data(labels=test_labels, sample_graphs=test_samples, nodes=test_nodes, masks=mask_observed, aug=aug, device=device,
