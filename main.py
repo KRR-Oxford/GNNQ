@@ -22,7 +22,7 @@ def train(device, feat_dim, shapes_dict, train_data, val_data, log_directory, mo
         args.base_dim = trial.suggest_int('base_dim', 8, 64)
         args.learning_rate = trial.suggest_float("learning_rate", 0.0001, 0.1001, step=0.0005) #default 0.001
         args.negative_slope = trial.suggest_float('negative_slope', 0.001, 0.101, step=0.005) #default 0.01
-        args.positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 100)
+        # args.positive_sample_weight = trial.suggest_int('positive_sample_weight', 1, 100)
         with open(os.path.join(log_directory, 'trial-{}-config.txt'.format(trial.number)), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
     else:
@@ -155,7 +155,7 @@ if __name__ == '__main__':
                                                                                               args.query_string)
         val_samples, val_nodes, types, val_labels, val_masks, graphs = load_watdiv_benchmark(args.val_data, args.query_string)
 
-    # Preprocesses the data
+    # Augments the data
     if args.aug:
         subqueries, subquery_shape = generate_subqueries(query_string=args.query_string, max_num_subquery_vars=args.max_num_subquery_vars)
 
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
     else:
         study = optuna.create_study(direction='maximize', pruner=optuna.pruners.MedianPruner(
-            n_startup_trials=5, n_warmup_steps=30, interval_steps=10), sampler=RandomSampler(0))
+            n_startup_trials=5, n_warmup_steps=30, interval_steps=1), sampler=RandomSampler(0))
         study.optimize(lambda trial: train(trial=trial, device=device, feat_dim=feat_dim, shapes_dict=shapes_dict,
                                     train_data=train_data_objects, val_data=val_data_objects,
                                     log_directory=log_directory, model_directory=model_directory, subqueries=subqueries, args=args), n_trials=100, gc_after_trial=True)
