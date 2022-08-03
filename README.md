@@ -12,7 +12,7 @@ Clone the GNNQ repository.
 
 ### Requirements
 We assume that the following is pre-installed. We used the respective versions specified in brackets.
-- python (3.7 or higher)
+- python (3.8.10 or higher)
 - pip (19.2.3 or higher)
 - venv
 
@@ -28,13 +28,15 @@ Follow the instructions below to install all dependencies required for our exper
 ```python -m venv env```
 - Start virtual environment. \
 ```source env/bin/activate```
-- Install PyTorch. \
-```pip install torch==1.9.0```
+- Install PyTorch. Replace `${CUDA}` with `cpu` or `cu113`. \
+```pip install torch==1.11.0+${CUDA}  --extra-index-url https://download.pytorch.org/whl/${CUDA}```
+- Install PyTorch Scatter. Replace `${CUDA}` with `cpu` or `cu113`. \
+```pip install torch-scatter -f https://data.pyg.org/whl/torch-1.11.0+${CUDA}.html```
 - Install all other dependencies. \
 ```pip install -r requirements.txt```
 
 ### Datasets
-The `datasets/` directory, containing both the WatDiv-Qi and the FB15k237-Qi benchmarks, can be downloaded from fighshare (https://figshare.com/s/c81e802987081569adab). Place the `datasets/` directory in the `GNNQ/`.
+The `datasets/` directory, containing both the WatDiv-Qi and the FB15k237-Qi benchmarks, can be downloaded from fighshare (https://figshare.com/s/c81e802987081569adab). Unzip the downloaded .zip-file and place the `datasets/` directory in the `GNNQ/` directory.
 
 ### Run Experiments
 To run an experiment on the WatDiv benchmarks, run a variant of the following command from the GNNQ folder. Please remember that the virtual environment needs to be active. The following command is exemplary for the  WatDiv-Q1 benchmark. 
@@ -52,5 +54,5 @@ python main.py  --log_dir fb15k237_q1_4l_aug/ --num_layers 4 --aug --test --batc
 To reproduce experiments on other FB15k237 benchmarks, specify a new logging directory using the `--log_dir` parameter and exchange the query specified by the `--query_string` parameter. All FB15k237 benchmark queries can be found in the `datasets/benchmark_queries.txt`-file. Furthermore, specify the training and testing samples for the respective query using the `--train_data` and `--test_data` parameters and specify the respective "dummy" validation samples using the `--val_data` parameter (the sample files for the FB15k237 benchmarks are named with the answer variable of the respective query). All samples files can be found in the `datasets/fb15k237/` directory. To reproduce experiments using the baseline model, remove the `--aug` parameter. The number of layers for all models can be specified using the `--num_layers`parameter.
 
 ### Tune Hyperparameters:
-To tune hyperparameters for every benchmark use the `--tune` parameter. The `--tune` parameter starts an Optuna study with 100 trials.
+To tune hyperparameters for a benchmark use the `--tune` parameter. This will start an Optuna study with 100 trials.
 
