@@ -1,7 +1,7 @@
 # GNNQ: A Neuro-Symbolic Approach to Query Answering over Incomplete Knowledge Graphs
 
 ### About
-The GNNQ repository contains the source code for the GNNQ system presented in the paper "GNNQ: A Neuro-Symbolic Approach to Query Answering over Incomplete Knowledge Graphs" (insert link) published at ISWC22. 
+The GNNQ repository contains the source code for the GNNQ system presented in the paper "GNNQ: A Neuro-Symbolic Approach to Query Answering over Incomplete Knowledge Graphs" accepted to ISWC22 (insert link to full paper + appendix). 
 
 GNNQ is a neuro-symbolic system to answer monadic tree-like conjunctive queries over incomplete KGs. GNNQ ﬁrst symbolically augments an input KG (formally a set of facts) with additional facts representing subsets matching connected query fragments, and then applies a generalisation of the Relational Graph Convolutional Networks (RGCNs) model to the augmented KG to produce the predicted query answers.
 
@@ -36,7 +36,7 @@ To install all dependencies required for our experiments follow the instructions
 ```pip install -r requirements.txt```
 
 ### Datasets
-The `datasets/` directory, containing both the WatDiv-Qi and the FB15k237-Qi benchmarks, can be downloaded from fighshare (https://figshare.com/s/c81e802987081569adab). Unzip the downloaded .zip-file and place the `datasets/` directory in the `GNNQ/` directory.
+The `datasets/` directory, containing both the WatDiv-Qi and the FB15k237-Qi benchmarks, can be downloaded from here (https://portal.sds.ox.ac.uk/ndownloader/files/36445044). Unzip the downloaded .zip-file and place the `datasets/` directory in the `GNNQ/` directory.
 
 ### Run Experiments
 To train and evaluate a 4-layer GNNQ instance on the WatDiv-Q1 benchmark run the following command from the GNNQ folder. Please remember that the virtual environment needs to be active. 
