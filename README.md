@@ -1,7 +1,7 @@
 # GNNQ: A Neuro-Symbolic Approach to Query Answering over Incomplete Knowledge Graphs
 
 ### About
-The GNNQ repository contains the source code for the GNNQ system presented in the paper [GNNQ: A Neuro-Symbolic Approach to Query Answering over Incomplete Knowledge Graphs](https://portal.sds.ox.ac.uk/ndownloader/files/36647646) accepted to ISWC22. 
+The GNNQ repository contains the source code for the GNNQ system presented in the paper [GNNQ: A Neuro-Symbolic Approach to Query Answering over Incomplete Knowledge Graphs](https://portal.sds.ox.ac.uk/ndownloader/files/36649044) accepted to ISWC22. 
 
 GNNQ is a neuro-symbolic system to answer monadic tree-like conjunctive queries over incomplete KGs. GNNQ ﬁrst symbolically augments an input KG (formally a set of facts) with additional facts representing subsets matching connected query fragments, and then applies a generalisation of the Relational Graph Convolutional Networks (RGCNs) model to the augmented KG to produce the predicted query answers.
 
